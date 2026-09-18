@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="004-1-create-consultation-initiale" author="proxymed">
+        <createTable tableName="consultation_initiale">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="patient_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_consultation_patient" references="patient(id)"/>
+            </column>
+            <column name="medecin_senior_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_consultation_medecin_senior" references="medecin(id)"/>
+            </column>
+            <column name="date_consultation" type="DATE"/>
+            <column name="heure_consultation" type="TIME"/>
+            <column name="statut" type="VARCHAR(20)" defaultValue="BROUILLON">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="origine_demande" type="VARCHAR(30)"/>
+            <column name="origine_demande_autre_precision" type="VARCHAR(500)"/>
+            <column name="motif_principal_consultation" type="TEXT"/>
+
+            <column name="precisions_maladies_chroniques" type="TEXT"/>
+            <column name="allergies_connues" type="BOOLEAN"/>
+            <column name="precisions_allergies_medicamenteuses" type="TEXT"/>
+            <column name="hospitalisations_anterieures" type="BOOLEAN"/>
+            <column name="chirurgies_anterieures" type="BOOLEAN"/>
+            <column name="details_hospitalisations_chirurgies" type="TEXT"/>
+
+            <column name="niveau_autonomie" type="VARCHAR(30)"/>
+            <column name="risque_isolement" type="VARCHAR(20)"/>
+            <column name="niveau_precarite" type="VARCHAR(20)"/>
+            <column name="besoins_sociaux_identifies" type="TEXT"/>
+
+            <column name="resume_syndromique_cim10" type="TEXT"/>
+            <column name="decision_eligibilite" type="VARCHAR(20)"/>
+            <column name="motif_non_eligibilite" type="TEXT"/>
+            <column name="medecin_junior_affecte_id" type="BIGINT">
+                <constraints foreignKeyName="fk_consultation_medecin_junior" references="medecin(id)"/>
+            </column>
+            <column name="frequence_visites_suivi" type="VARCHAR(20)"/>
+            <column name="plan_suivi_personnalise" type="TEXT"/>
+            <column name="traitement_prescrit" type="TEXT"/>
+            <column name="examens_biologiques_prescrits" type="VARCHAR(20)"/>
+            <column name="date_prochaine_consultation_senior" type="DATE"/>
+            <column name="delai_recommande" type="VARCHAR(255)"/>
+
+            <column name="signature_medecin_senior" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="horodatage_signature_medecin_senior" type="TIMESTAMP WITH TIME ZONE"/>
+            <column name="signature_point_focal_dass" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="horodatage_signature_point_focal_dass" type="TIMESTAMP WITH TIME ZONE"/>
+            <column name="nom_point_focal_dass" type="VARCHAR(255)"/>
+            <column name="visa_directeur_samu" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="horodatage_visa_directeur_samu" type="TIMESTAMP WITH TIME ZONE"/>
+            <column name="nom_directeur_samu" type="VARCHAR(255)"/>
+
+            <column name="numero_fiche_dmi" type="VARCHAR(100)"/>
+            <column name="date_saisie_dmi" type="DATE"/>
+            <column name="saisie_par" type="VARCHAR(255)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="004-2-index-consultation-filters" author="proxymed">
+        <createIndex indexName="idx_consultation_statut" tableName="consultation_initiale">
+            <column name="statut"/>
+        </createIndex>
+        <createIndex indexName="idx_consultation_decision_eligibilite" tableName="consultation_initiale">
+            <column name="decision_eligibilite"/>
+        </createIndex>
+        <createIndex indexName="idx_consultation_patient" tableName="consultation_initiale">
+            <column name="patient_id"/>
+        </createIndex>
+        <createIndex indexName="idx_consultation_medecin_junior" tableName="consultation_initiale">
+            <column name="medecin_junior_affecte_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

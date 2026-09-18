@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="006-1-create-consultation-facteur-de-risque" author="proxymed">
+        <createTable tableName="consultation_facteur_de_risque">
+            <column name="consultation_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_cfr_consultation" references="consultation_initiale(id)"/>
+            </column>
+            <column name="facteur_de_risque_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_cfr_facteur" references="facteur_de_risque(id)"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="consultation_facteur_de_risque"
+                        columnNames="consultation_id, facteur_de_risque_id"
+                        constraintName="pk_consultation_facteur_de_risque"/>
+    </changeSet>
+
+    <changeSet id="006-2-create-consultation-situation-sociale" author="proxymed">
+        <createTable tableName="consultation_situation_sociale">
+            <column name="consultation_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_css_consultation" references="consultation_initiale(id)"/>
+            </column>
+            <column name="situation_sociale_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_css_situation" references="situation_sociale(id)"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="consultation_situation_sociale"
+                        columnNames="consultation_id, situation_sociale_id"
+                        constraintName="pk_consultation_situation_sociale"/>
+    </changeSet>
+
+</databaseChangeLog>

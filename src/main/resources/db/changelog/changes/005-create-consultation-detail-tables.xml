@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="005-1-create-constante-vitale" author="proxymed">
+        <createTable tableName="constante_vitale">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="consultation_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_constante_consultation" references="consultation_initiale(id)"/>
+            </column>
+            <column name="type" type="VARCHAR(30)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valeur" type="NUMERIC(7,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="heure" type="TIME"/>
+            <column name="est_normal" type="BOOLEAN"/>
+            <column name="est_alerte" type="BOOLEAN"/>
+            <column name="commentaire" type="TEXT"/>
+        </createTable>
+        <createIndex indexName="idx_constante_consultation" tableName="constante_vitale">
+            <column name="consultation_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="005-2-create-examen-par-appareil" author="proxymed">
+        <createTable tableName="examen_par_appareil">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="consultation_id" type="UUID">
+                <constraints nullable="false" unique="true"
+                             foreignKeyName="fk_examen_consultation" references="consultation_initiale(id)"/>
+            </column>
+            <column name="etat_general" type="TEXT"/>
+            <column name="cardio_vasculaire" type="TEXT"/>
+            <column name="respiratoire" type="TEXT"/>
+            <column name="digestif" type="TEXT"/>
+            <column name="neurologique" type="TEXT"/>
+            <column name="locomoteur_cutane_autre" type="TEXT"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="005-3-create-antecedent-maladie" author="proxymed">
+        <createTable tableName="antecedent_maladie">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="consultation_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_antecedent_consultation" references="consultation_initiale(id)"/>
+            </column>
+            <column name="maladie_chronique_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_antecedent_maladie_chronique" references="maladie_chronique(id)"/>
+            </column>
+            <column name="precision" type="TEXT"/>
+        </createTable>
+        <createIndex indexName="idx_antecedent_consultation" tableName="antecedent_maladie">
+            <column name="consultation_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
