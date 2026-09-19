@@ -73,7 +73,7 @@ public class ConsultationController {
     }
 
     @PutMapping("/{id}")
-    public ConsultationResponse mettreAJour(@PathVariable UUID id, @RequestBody ConsultationUpdateRequest request) {
+    public ConsultationResponse mettreAJour(@PathVariable UUID id, @Valid @RequestBody ConsultationUpdateRequest request) {
         return consultationMapper.toResponse(consultationService.mettreAJour(id, consultationMapper.toModel(request)));
     }
 

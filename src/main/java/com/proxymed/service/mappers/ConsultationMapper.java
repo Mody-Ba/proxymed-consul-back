@@ -1,24 +1,40 @@
 package com.proxymed.service.mappers;
 
 import com.proxymed.entity.ConsultationInitiale;
+import com.proxymed.entity.FacteurDeRisque;
 import com.proxymed.entity.Medecin;
-import com.proxymed.entity.Patient;
+import com.proxymed.entity.SituationSociale;
+import com.proxymed.repository.FacteurDeRisqueRepository;
+import com.proxymed.repository.MedecinRepository;
+import com.proxymed.repository.PatientRepository;
+import com.proxymed.repository.SituationSocialeRepository;
 import com.proxymed.service.model.ConsultationModel;
+import com.proxymed.service.model.FacteurDeRisqueModel;
+import com.proxymed.service.model.SituationSocialeModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Mapper DB : convertit uniquement entre ConsultationModel et l'entite JPA ConsultationInitiale.
  * Ne doit jamais connaitre ConsultationCreateRequest/UpdateRequest/Response.
  *
- * Les relations (patient, medecins, facteurs de risque, situation sociale) sont fournies
- * par le service sous forme d'entites deja chargees via leurs repositories respectifs :
- * ce mapper ne fait lui-meme aucun appel repository.
+ * Resout lui-meme les references JPA vers les autres aggregats (patient, medecins, facteurs
+ * de risque, situation sociale) via getReferenceById sur leurs repositories respectifs :
+ * simple traduction d'un id en relation, jamais un appel metier. Le service appelant ne
+ * manipule ainsi jamais ces entites, seulement leurs id (ou les Model renvoyes par les
+ * services correspondants, deja valides en amont).
  */
 @Component("dbConsultationMapper")
 @RequiredArgsConstructor
 public class ConsultationMapper {
 
+    private final PatientRepository patientRepository;
+    private final MedecinRepository medecinRepository;
+    private final FacteurDeRisqueRepository facteurDeRisqueRepository;
+    private final SituationSocialeRepository situationSocialeRepository;
     private final PatientMapper patientMapper;
     private final MedecinMapper medecinMapper;
     private final FacteurDeRisqueMapper facteurDeRisqueMapper;
@@ -27,10 +43,10 @@ public class ConsultationMapper {
     private final ExamenParAppareilMapper examenParAppareilMapper;
     private final AntecedentMaladieMapper antecedentMaladieMapper;
 
-    public ConsultationInitiale toNewEntity(ConsultationModel model, Patient patient, Medecin medecinSenior) {
+    public ConsultationInitiale toNewEntity(ConsultationModel model) {
         return ConsultationInitiale.builder()
-                .patient(patient)
-                .medecinSenior(medecinSenior)
+                .patient(patientRepository.getReferenceById(model.patient().id()))
+                .medecinSenior(medecinRepository.getReferenceById(model.medecinSenior().id()))
                 .statut(model.statut())
                 .dateConsultation(model.dateConsultation())
                 .heureConsultation(model.heureConsultation())
@@ -41,9 +57,9 @@ public class ConsultationMapper {
     /**
      * Applique les champs scalaires (hors relations) du modele sur une entite managee
      * existante (mutation en place, necessaire pour qu'Hibernate suive les changements).
-     * Les relations (facteurs de risque, situation sociale, medecin junior) sont a la
-     * charge du service, qui doit les affecter lui-meme sur l'entite avec des references
-     * chargees via ses repositories.
+     * Les relations (facteurs de risque, situation sociale, medecin junior) se font via
+     * appliquerFacteursDeRisque/appliquerSituationSociale/appliquerMedecinJuniorAffecte,
+     * pour ne les toucher que quand le service decide explicitement de les modifier.
      */
     public void applyScalarFieldsToEntity(ConsultationInitiale entity, ConsultationModel model) {
         entity.setDateConsultation(model.dateConsultation());
@@ -88,6 +104,26 @@ public class ConsultationMapper {
         entity.setNumeroFicheDmi(model.numeroFicheDmi());
         entity.setDateSaisieDmi(model.dateSaisieDmi());
         entity.setSaisiePar(model.saisiePar());
+    }
+
+    public void appliquerFacteursDeRisque(ConsultationInitiale entity, List<FacteurDeRisqueModel> modeles) {
+        List<FacteurDeRisque> references = new ArrayList<>();
+        for (FacteurDeRisqueModel m : modeles) {
+            references.add(facteurDeRisqueRepository.getReferenceById(m.id()));
+        }
+        entity.setFacteursDeRisque(references);
+    }
+
+    public void appliquerSituationSociale(ConsultationInitiale entity, List<SituationSocialeModel> modeles) {
+        List<SituationSociale> references = new ArrayList<>();
+        for (SituationSocialeModel m : modeles) {
+            references.add(situationSocialeRepository.getReferenceById(m.id()));
+        }
+        entity.setSituationSociale(references);
+    }
+
+    public void appliquerMedecinJuniorAffecte(ConsultationInitiale entity, Long medecinJuniorId) {
+        entity.setMedecinJuniorAffecte(medecinJuniorId != null ? medecinRepository.getReferenceById(medecinJuniorId) : null);
     }
 
     public ConsultationModel toModel(ConsultationInitiale entity) {

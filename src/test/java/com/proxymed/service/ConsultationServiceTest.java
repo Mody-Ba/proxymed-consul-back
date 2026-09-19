@@ -13,6 +13,11 @@ import com.proxymed.enums.StatutConsultation;
 import com.proxymed.enums.TypeConstanteVitale;
 import com.proxymed.exception.ConflitEtatException;
 import com.proxymed.exception.RegleGestionException;
+import com.proxymed.repository.ConsultationRepository;
+import com.proxymed.repository.FacteurDeRisqueRepository;
+import com.proxymed.repository.MedecinRepository;
+import com.proxymed.repository.PatientRepository;
+import com.proxymed.repository.SituationSocialeRepository;
 import com.proxymed.service.model.ConsultationModel;
 import com.proxymed.service.model.MedecinModel;
 import com.proxymed.service.model.PatientModel;
@@ -33,15 +38,26 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
- * Teste ConsultationService en isolation : les collaborateurs externes (repository,
- * autres services) sont mockes, mais les mappers DB (service.mappers.*) sont de vraies
- * instances (ce sont de simples convertisseurs sans dependance repository).
+ * Teste ConsultationService en isolation : les collaborateurs externes (repositories,
+ * autres services) sont mockes, mais le mapper DB (service.mappers.ConsultationMapper) est
+ * une vraie instance, avec ses propres dependances (sous-mappers + repositories de reference,
+ * qui restent des simples convertisseurs/getReferenceById sans logique metier).
  */
 @ExtendWith(MockitoExtension.class)
 class ConsultationServiceTest {
 
     @Mock
-    private com.proxymed.repository.ConsultationRepository consultationRepository;
+    private ConsultationRepository consultationRepository;
+    @Mock
+    private PatientRepository patientRepository;
+    @Mock
+    private MedecinRepository medecinRepository;
+    @Mock
+    private FacteurDeRisqueRepository facteurDeRisqueRepository;
+    @Mock
+    private SituationSocialeRepository situationSocialeRepository;
+    @Mock
+    private com.proxymed.repository.StructureRepository structureRepository;
     @Mock
     private PatientService patientService;
     @Mock
@@ -60,21 +76,19 @@ class ConsultationServiceTest {
     @BeforeEach
     void setUp() {
         com.proxymed.service.mappers.ConsultationMapper consultationDbMapper = new com.proxymed.service.mappers.ConsultationMapper(
+                patientRepository, medecinRepository, facteurDeRisqueRepository, situationSocialeRepository,
                 new com.proxymed.service.mappers.PatientMapper(),
-                new com.proxymed.service.mappers.MedecinMapper(),
+                new com.proxymed.service.mappers.MedecinMapper(structureRepository),
                 new com.proxymed.service.mappers.FacteurDeRisqueMapper(),
                 new com.proxymed.service.mappers.SituationSocialeMapper(),
-                new com.proxymed.service.mappers.ConstanteVitaleMapper(),
-                new com.proxymed.service.mappers.ExamenParAppareilMapper(),
-                new com.proxymed.service.mappers.AntecedentMaladieMapper());
+                new com.proxymed.service.mappers.ConstanteVitaleMapper(consultationRepository),
+                new com.proxymed.service.mappers.ExamenParAppareilMapper(consultationRepository),
+                new com.proxymed.service.mappers.AntecedentMaladieMapper(
+                        consultationRepository, org.mockito.Mockito.mock(com.proxymed.repository.MaladieChroniqueRepository.class)));
 
-        consultationService = new ConsultationService(
-                consultationRepository, patientService, medecinService,
-                facteurDeRisqueService, situationSocialeService,
-                consultationDbMapper,
-                new com.proxymed.service.mappers.MedecinMapper(),
-                new com.proxymed.service.mappers.FacteurDeRisqueMapper(),
-                new com.proxymed.service.mappers.SituationSocialeMapper());
+        consultationService = new ConsultationServiceImpl(
+                consultationRepository, patientService, medecinService, facteurDeRisqueService, situationSocialeService,
+                consultationDbMapper);
 
         medecinSenior = Medecin.builder().id(1L).nom("Diop").prenom("Awa").numeroOrdre("S-1").role(RoleMedecin.SENIOR).build();
         medecinJunior = Medecin.builder().id(2L).nom("Fall").prenom("Omar").numeroOrdre("J-1").role(RoleMedecin.JUNIOR).build();
@@ -85,8 +99,8 @@ class ConsultationServiceTest {
 
     @Test
     void creerBrouillon_rejette_siMedecinNestPasSenior() {
-        when(patientService.getEntityById(patient.getId())).thenReturn(patient);
-        when(medecinService.getEntityById(medecinJunior.getId())).thenReturn(medecinJunior);
+        when(medecinService.findById(medecinJunior.getId())).thenReturn(
+                MedecinModel.builder().id(medecinJunior.getId()).role(RoleMedecin.JUNIOR).build());
 
         ConsultationModel intention = ConsultationModel.builder()
                 .patient(PatientModel.builder().id(patient.getId()).build())
@@ -99,8 +113,10 @@ class ConsultationServiceTest {
 
     @Test
     void creerBrouillon_creeUneFicheEnBrouillon() {
-        when(patientService.getEntityById(patient.getId())).thenReturn(patient);
-        when(medecinService.getEntityById(medecinSenior.getId())).thenReturn(medecinSenior);
+        when(medecinService.findById(medecinSenior.getId())).thenReturn(
+                MedecinModel.builder().id(medecinSenior.getId()).role(RoleMedecin.SENIOR).build());
+        when(patientRepository.getReferenceById(patient.getId())).thenReturn(patient);
+        when(medecinRepository.getReferenceById(medecinSenior.getId())).thenReturn(medecinSenior);
 
         ConsultationModel intention = ConsultationModel.builder()
                 .patient(PatientModel.builder().id(patient.getId()).build())
@@ -184,7 +200,9 @@ class ConsultationServiceTest {
     void mettreAJour_eligibleAvecMedecinJunior_estAccepte() {
         ConsultationInitiale consultation = consultationBrouillon();
         when(consultationRepository.findById(consultation.getId())).thenReturn(java.util.Optional.of(consultation));
-        when(medecinService.getEntityById(medecinJunior.getId())).thenReturn(medecinJunior);
+        when(medecinService.findById(medecinJunior.getId())).thenReturn(
+                MedecinModel.builder().id(medecinJunior.getId()).role(RoleMedecin.JUNIOR).build());
+        when(medecinRepository.getReferenceById(medecinJunior.getId())).thenReturn(medecinJunior);
 
         ConsultationModel intention = ConsultationModel.builder()
                 .decisionEligibilite(DecisionEligibilite.ELIGIBLE)

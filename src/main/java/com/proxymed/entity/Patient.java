@@ -17,7 +17,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
-import java.time.Period;
 import java.util.UUID;
 
 @Entity
@@ -67,14 +66,4 @@ public class Patient {
     @Enumerated(EnumType.STRING)
     @Column(name = "couverture_sociale")
     private CouvertureSociale couvertureSociale;
-
-    /**
-     * Calcule dynamiquement, jamais persiste : la date de naissance est la source de verite.
-     */
-    public Integer getAge() {
-        if (dateNaissance == null) {
-            return null;
-        }
-        return Period.between(dateNaissance, LocalDate.now()).getYears();
-    }
 }

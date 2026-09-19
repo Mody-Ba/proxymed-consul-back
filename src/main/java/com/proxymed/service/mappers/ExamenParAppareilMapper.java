@@ -1,20 +1,29 @@
 package com.proxymed.service.mappers;
 
-import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.ExamenParAppareil;
+import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.service.model.ExamenParAppareilModel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.util.UUID;
 
 /**
  * Mapper DB : convertit uniquement entre ExamenParAppareilModel et l'entite JPA ExamenParAppareil.
  * Ne doit jamais connaitre ExamenParAppareilRequest/Response.
+ * Resout lui-meme la reference JPA vers la consultation parente (getReferenceById, simple
+ * traduction d'un id en relation) : le service qui l'appelle ne manipule ainsi jamais
+ * l'entite ConsultationInitiale, seulement l'id.
  */
 @Component("dbExamenParAppareilMapper")
+@RequiredArgsConstructor
 public class ExamenParAppareilMapper {
 
-    public ExamenParAppareil toEntity(ExamenParAppareilModel model, ConsultationInitiale consultation) {
+    private final ConsultationRepository consultationRepository;
+
+    public ExamenParAppareil toEntity(ExamenParAppareilModel model, UUID consultationId) {
         return ExamenParAppareil.builder()
-                .consultation(consultation)
+                .consultation(consultationRepository.getReferenceById(consultationId))
                 .etatGeneral(model.etatGeneral())
                 .cardioVasculaire(model.cardioVasculaire())
                 .respiratoire(model.respiratoire())
@@ -49,5 +58,18 @@ public class ExamenParAppareilMapper {
                 .neurologique(entity.getNeurologique())
                 .locomoteurCutaneAutre(entity.getLocomoteurCutaneAutre())
                 .build();
+    }
+
+    /**
+     * Rattache l'examen a la consultation parente cote inverse (1-1 mappedBy). Indispensable
+     * si la meme entite/session est relue plus tard dans la meme transaction (ex. tests
+     * d'integration @Transactional, ou un futur appel groupe dans la meme requete) : sans
+     * cela, une lecture ulterieure de consultation.getExamenParAppareil() resterait perimee.
+     * Pure bascule de persistance JPA, pas une regle metier : c'est pourquoi elle vit dans
+     * ce mapper plutot que dans le service, qui ne doit jamais toucher l'entite
+     * ConsultationInitiale.
+     */
+    public void synchroniserAvecConsultation(UUID consultationId, ExamenParAppareil examen) {
+        consultationRepository.getReferenceById(consultationId).setExamenParAppareil(examen);
     }
 }

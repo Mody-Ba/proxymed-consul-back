@@ -3,6 +3,7 @@ package com.proxymed.service;
 import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.exception.ConflitEtatException;
 import com.proxymed.exception.ResourceNotFoundException;
+import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.service.model.ExamenParAppareilModel;
 import com.proxymed.repository.ExamenParAppareilRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,14 +27,17 @@ class ExamenParAppareilServiceTest {
     @Mock
     private ExamenParAppareilRepository examenParAppareilRepository;
     @Mock
+    private ConsultationRepository consultationRepository;
+    @Mock
     private ConsultationService consultationService;
 
     private ExamenParAppareilService examenParAppareilService;
 
     @BeforeEach
     void setUp() {
-        examenParAppareilService = new ExamenParAppareilService(
-                examenParAppareilRepository, consultationService, new com.proxymed.service.mappers.ExamenParAppareilMapper());
+        examenParAppareilService = new ExamenParAppareilServiceImpl(
+                examenParAppareilRepository, consultationService,
+                new com.proxymed.service.mappers.ExamenParAppareilMapper(consultationRepository));
         lenient().when(examenParAppareilRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -49,8 +53,8 @@ class ExamenParAppareilServiceTest {
     @Test
     void creerOuMettreAJour_rejette_siFicheSignee() {
         UUID consultationId = UUID.randomUUID();
-        when(consultationService.getModifiableEntityById(consultationId))
-                .thenThrow(new ConflitEtatException("La fiche est signee et n'est plus modifiable"));
+        org.mockito.Mockito.doThrow(new ConflitEtatException("La fiche est signee et n'est plus modifiable"))
+                .when(consultationService).verifierModifiable(consultationId);
 
         ExamenParAppareilModel model = ExamenParAppareilModel.builder().etatGeneral("bon").build();
 
@@ -61,12 +65,12 @@ class ExamenParAppareilServiceTest {
     @Test
     void creerOuMettreAJour_creeLExamenSiAbsent() {
         ConsultationInitiale consultation = ConsultationInitiale.builder().id(UUID.randomUUID()).build();
-        when(consultationService.getModifiableEntityById(consultation.getId())).thenReturn(consultation);
+        when(examenParAppareilRepository.findByConsultationId(consultation.getId())).thenReturn(Optional.empty());
+        when(consultationRepository.getReferenceById(consultation.getId())).thenReturn(consultation);
 
         ExamenParAppareilModel model = ExamenParAppareilModel.builder().etatGeneral("altere").cardioVasculaire("RAS").build();
         var resultat = examenParAppareilService.creerOuMettreAJour(consultation.getId(), model);
 
         assertThat(resultat.etatGeneral()).isEqualTo("altere");
-        assertThat(consultation.getExamenParAppareil()).isNotNull();
     }
 }

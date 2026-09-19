@@ -5,6 +5,7 @@ import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.enums.StatutConsultation;
 import com.proxymed.enums.TypeConstanteVitale;
 import com.proxymed.exception.ConflitEtatException;
+import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.service.model.ConstanteVitaleModel;
 import com.proxymed.repository.ConstanteVitaleRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,22 +33,25 @@ class ConstanteVitaleServiceTest {
     @Mock
     private ConstanteVitaleRepository constanteVitaleRepository;
     @Mock
+    private ConsultationRepository consultationRepository;
+    @Mock
     private ConsultationService consultationService;
 
     private ConstanteVitaleService constanteVitaleService;
 
     @BeforeEach
     void setUp() {
-        constanteVitaleService = new ConstanteVitaleService(
-                constanteVitaleRepository, consultationService, new com.proxymed.service.mappers.ConstanteVitaleMapper());
+        constanteVitaleService = new ConstanteVitaleServiceImpl(
+                constanteVitaleRepository, consultationService,
+                new com.proxymed.service.mappers.ConstanteVitaleMapper(consultationRepository));
         lenient().when(constanteVitaleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
     void ajouter_rejette_siFicheSignee() {
         UUID consultationId = UUID.randomUUID();
-        when(consultationService.getModifiableEntityById(consultationId))
-                .thenThrow(new ConflitEtatException("La fiche est signee et n'est plus modifiable"));
+        org.mockito.Mockito.doThrow(new ConflitEtatException("La fiche est signee et n'est plus modifiable"))
+                .when(consultationService).verifierModifiable(consultationId);
 
         ConstanteVitaleModel model = ConstanteVitaleModel.builder().type(TypeConstanteVitale.FC).valeur(BigDecimal.valueOf(80)).build();
 
@@ -61,7 +65,7 @@ class ConstanteVitaleServiceTest {
                 .id(UUID.randomUUID())
                 .statut(StatutConsultation.BROUILLON)
                 .build();
-        when(consultationService.getModifiableEntityById(consultation.getId())).thenReturn(consultation);
+        lenient().when(consultationRepository.getReferenceById(consultation.getId())).thenReturn(consultation);
 
         ConstanteVitale poidsEntity = ConstanteVitale.builder().id(1L).consultation(consultation)
                 .type(TypeConstanteVitale.POIDS).valeur(BigDecimal.valueOf(70)).build();

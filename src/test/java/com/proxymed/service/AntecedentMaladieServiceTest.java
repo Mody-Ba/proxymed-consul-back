@@ -3,7 +3,10 @@ package com.proxymed.service;
 import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.MaladieChronique;
 import com.proxymed.exception.ConflitEtatException;
+import com.proxymed.repository.ConsultationRepository;
+import com.proxymed.repository.MaladieChroniqueRepository;
 import com.proxymed.service.model.AntecedentMaladieModel;
+import com.proxymed.service.model.MaladieChroniqueModel;
 import com.proxymed.repository.AntecedentMaladieRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +28,10 @@ class AntecedentMaladieServiceTest {
     @Mock
     private AntecedentMaladieRepository antecedentMaladieRepository;
     @Mock
+    private ConsultationRepository consultationRepository;
+    @Mock
+    private MaladieChroniqueRepository maladieChroniqueRepository;
+    @Mock
     private MaladieChroniqueService maladieChroniqueService;
     @Mock
     private ConsultationService consultationService;
@@ -33,17 +40,17 @@ class AntecedentMaladieServiceTest {
 
     @BeforeEach
     void setUp() {
-        antecedentMaladieService = new AntecedentMaladieService(
+        antecedentMaladieService = new AntecedentMaladieServiceImpl(
                 antecedentMaladieRepository, maladieChroniqueService, consultationService,
-                new com.proxymed.service.mappers.AntecedentMaladieMapper());
+                new com.proxymed.service.mappers.AntecedentMaladieMapper(consultationRepository, maladieChroniqueRepository));
         lenient().when(antecedentMaladieRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
     void ajouter_rejette_siFicheSignee() {
         UUID consultationId = UUID.randomUUID();
-        when(consultationService.getModifiableEntityById(consultationId))
-                .thenThrow(new ConflitEtatException("La fiche est signee et n'est plus modifiable"));
+        org.mockito.Mockito.doThrow(new ConflitEtatException("La fiche est signee et n'est plus modifiable"))
+                .when(consultationService).verifierModifiable(consultationId);
 
         AntecedentMaladieModel model = AntecedentMaladieModel.builder().maladieChroniqueId(1L).precision("precision").build();
 
@@ -55,8 +62,10 @@ class AntecedentMaladieServiceTest {
     void ajouter_associeLaMaladieChroniqueALaConsultation() {
         ConsultationInitiale consultation = ConsultationInitiale.builder().id(UUID.randomUUID()).build();
         MaladieChronique diabete = MaladieChronique.builder().id(5L).libelle("Diabete").build();
-        when(consultationService.getModifiableEntityById(consultation.getId())).thenReturn(consultation);
-        when(maladieChroniqueService.getEntityById(5L)).thenReturn(diabete);
+        when(maladieChroniqueService.findById(5L)).thenReturn(
+                MaladieChroniqueModel.builder().id(5L).libelle("Diabete").actif(true).build());
+        when(consultationRepository.getReferenceById(consultation.getId())).thenReturn(consultation);
+        when(maladieChroniqueRepository.getReferenceById(5L)).thenReturn(diabete);
 
         AntecedentMaladieModel model = AntecedentMaladieModel.builder().maladieChroniqueId(5L).precision("depuis 2019").build();
         var resultat = antecedentMaladieService.ajouter(consultation.getId(), model);

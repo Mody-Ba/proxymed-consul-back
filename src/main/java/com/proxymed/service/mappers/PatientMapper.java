@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 /**
  * Mapper DB : convertit uniquement entre PatientModel et l'entite JPA Patient.
  * Ne doit jamais connaitre PatientRequest/PatientResponse.
+ * L'entite Patient ne porte pas l'age (champ derive) : c'est PatientService qui le
+ * calcule a partir de dateNaissance et le renseigne sur le PatientModel.
  */
 @Component("dbPatientMapper")
 public class PatientMapper {
@@ -54,7 +56,6 @@ public class PatientMapper {
                 .numeroDmi(entity.getNumeroDmi())
                 .nomComplet(entity.getNomComplet())
                 .dateNaissance(entity.getDateNaissance())
-                .age(entity.getAge())
                 .sexe(entity.getSexe())
                 .telephone(entity.getTelephone())
                 .adresseDomicile(entity.getAdresseDomicile())

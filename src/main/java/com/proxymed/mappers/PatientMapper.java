@@ -5,12 +5,11 @@ import com.proxymed.service.model.PatientRequest;
 import com.proxymed.service.model.PatientResponse;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
-import java.time.Period;
-
 /**
  * Mapper API : convertit uniquement PatientRequest <-> PatientModel et PatientModel -> PatientResponse.
  * Ne doit jamais connaitre l'entite JPA Patient.
+ * L'age n'est pas calcule ici : PatientService le derive de la date de naissance
+ * et le renseigne sur le PatientModel avant tout retour au controller.
  */
 @Component("apiPatientMapper")
 public class PatientMapper {
@@ -21,7 +20,6 @@ public class PatientMapper {
                 .numeroDmi(req.numeroDmi())
                 .nomComplet(req.nomComplet())
                 .dateNaissance(req.dateNaissance())
-                .age(calculerAge(req.dateNaissance()))
                 .sexe(req.sexe())
                 .telephone(req.telephone())
                 .adresseDomicile(req.adresseDomicile())
@@ -50,9 +48,5 @@ public class PatientMapper {
                 .personneAContacterTelephone(model.personneAContacterTelephone())
                 .couvertureSociale(model.couvertureSociale())
                 .build();
-    }
-
-    private Integer calculerAge(LocalDate dateNaissance) {
-        return dateNaissance != null ? Period.between(dateNaissance, LocalDate.now()).getYears() : null;
     }
 }
