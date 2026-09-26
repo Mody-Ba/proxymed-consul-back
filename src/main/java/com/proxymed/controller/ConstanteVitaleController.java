@@ -7,6 +7,7 @@ import com.proxymed.service.ConstanteVitaleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -38,5 +39,11 @@ public class ConstanteVitaleController {
                                              @Valid @RequestBody ConstanteVitaleRequest request) {
         return constanteVitaleMapper.toResponse(
                 constanteVitaleService.modifier(consultationId, constanteId, constanteVitaleMapper.toModel(request)));
+    }
+
+    @DeleteMapping("/{constanteId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void supprimer(@PathVariable UUID consultationId, @PathVariable Long constanteId) {
+        constanteVitaleService.supprimer(consultationId, constanteId);
     }
 }

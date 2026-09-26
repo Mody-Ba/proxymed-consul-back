@@ -1,4 +1,4 @@
-package com.proxymed.controller;
+package com.proxymed.integration;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -12,13 +12,17 @@ import com.proxymed.repository.PatientRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Map;
+import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -29,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class ConsultationApiIntegrationTest {
+class ConsultationIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -39,6 +43,8 @@ class ConsultationApiIntegrationTest {
     private PatientRepository patientRepository;
     @Autowired
     private MedecinRepository medecinRepository;
+    @Autowired
+    private com.proxymed.repository.MaladieChroniqueRepository maladieChroniqueRepository;
 
     private Patient patient;
     private Medecin medecinSenior;
@@ -71,7 +77,6 @@ class ConsultationApiIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest());
 
-        // Remplissage section par section
         mockMvc.perform(put("/api/consultations/" + consultationId)
                         .contentType("application/json")
                         .content("""
@@ -95,7 +100,7 @@ class ConsultationApiIntegrationTest {
                                 """))
                 .andExpect(status().isOk());
 
-        // L'examen par appareil a son propre endpoint (section 5)
+        // Examen par appareil (section 5, endpoint dedie)
         mockMvc.perform(put("/api/consultations/" + consultationId + "/examen-par-appareil")
                         .contentType("application/json")
                         .content("""
@@ -103,6 +108,14 @@ class ConsultationApiIntegrationTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.etatGeneral", is("altere")));
+
+        // Antecedent maladie (section 3, endpoint dedie)
+        mockMvc.perform(post("/api/consultations/" + consultationId + "/antecedents-maladies")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "maladieChroniqueId", creerMaladieChronique("Diabete"),
+                                "precision", "depuis 2019"))))
+                .andExpect(status().isCreated());
 
         // Decision ELIGIBLE sans medecin junior -> rejetee
         mockMvc.perform(put("/api/consultations/" + consultationId)
@@ -114,7 +127,7 @@ class ConsultationApiIntegrationTest {
 
         mockMvc.perform(put("/api/consultations/" + consultationId)
                         .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        .content(objectMapper.writeValueAsString(Map.of(
                                 "decisionEligibilite", "ELIGIBLE",
                                 "medecinJuniorAffecteId", medecinJunior.getId()))))
                 .andExpect(status().isOk())
@@ -135,12 +148,14 @@ class ConsultationApiIntegrationTest {
                 .andExpect(status().isCreated());
 
         String fiche = mockMvc.perform(get("/api/consultations/" + consultationId))
-                .andExpect(status().isOk())
+                        .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maladiesChroniques", hasSize(1)))
+                .andExpect(jsonPath("$.maladiesChroniques[0].maladieChroniqueLibelle", is("Diabete")))
                 .andReturn().getResponse().getContentAsString();
         JsonNode imc = trouverConstante(fiche, "IMC");
-        org.assertj.core.api.Assertions.assertThat(imc).isNotNull();
-        org.assertj.core.api.Assertions.assertThat(imc.get("valeur").asDouble()).isEqualTo(22.9);
-        org.assertj.core.api.Assertions.assertThat(imc.get("estNormal").asBoolean()).isTrue();
+        assertThat(imc).isNotNull();
+        assertThat(imc.get("valeur").asDouble()).isEqualTo(22.9);
+        assertThat(imc.get("estNormal").asBoolean()).isTrue();
 
         // Signature avant validation -> conflit
         mockMvc.perform(post("/api/consultations/" + consultationId + "/signer"))
@@ -156,7 +171,7 @@ class ConsultationApiIntegrationTest {
                 .andExpect(jsonPath("$.statut", is("SIGNEE")))
                 .andExpect(jsonPath("$.signatureMedecinSenior", is(true)));
 
-        // Fiche signee -> non modifiable
+        // Fiche signee -> non modifiable (consultation, constantes, antecedents)
         mockMvc.perform(put("/api/consultations/" + consultationId)
                         .contentType("application/json")
                         .content("""
@@ -208,7 +223,6 @@ class ConsultationApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.id=='" + consultationId + "')]").exists());
 
-        // Une fois la DASS signee, la fiche sort de la liste
         mockMvc.perform(put("/api/consultations/" + consultationId)
                         .contentType("application/json")
                         .content("""
@@ -234,29 +248,60 @@ class ConsultationApiIntegrationTest {
         mockMvc.perform(get("/api/consultations")
                         .param("nomPatient", "Inconnu"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(0)));
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void findById_renvoie404_siConsultationInconnue() throws Exception {
+        mockMvc.perform(get("/api/consultations/" + UUID.randomUUID()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
     void creerBrouillon_rejette_siMedecinNestPasSenior() throws Exception {
         mockMvc.perform(post("/api/consultations")
                         .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        .content(objectMapper.writeValueAsString(Map.of(
                                 "patientId", patient.getId(),
                                 "medecinSeniorId", medecinJunior.getId()))))
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void creerBrouillon_rejette_siPatientOuMedecinManquant() throws Exception {
+        mockMvc.perform(post("/api/consultations")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void creerBrouillon_renvoie404_siPatientInconnu() throws Exception {
+        mockMvc.perform(post("/api/consultations")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "patientId", UUID.randomUUID(),
+                                "medecinSeniorId", medecinSenior.getId()))))
+                .andExpect(status().isNotFound());
+    }
+
     private String creerBrouillon() throws Exception {
         String reponse = mockMvc.perform(post("/api/consultations")
                         .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        .content(objectMapper.writeValueAsString(Map.of(
                                 "patientId", patient.getId(),
                                 "medecinSeniorId", medecinSenior.getId()))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.statut", is("BROUILLON")))
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(reponse).get("id").asText();
+    }
+
+    private long creerMaladieChronique(String libelle) throws Exception {
+        // Cree via le repository plutot que l'API (pas d'endpoint de creation pour ce referentiel).
+        return maladieChroniqueRepository.save(
+                        com.proxymed.entity.MaladieChronique.builder().libelle(libelle).actif(true).build())
+                .getId();
     }
 
     private JsonNode trouverConstante(String ficheJson, String type) throws Exception {

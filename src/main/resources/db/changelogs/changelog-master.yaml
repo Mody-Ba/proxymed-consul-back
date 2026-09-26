@@ -1,0 +1,19 @@
+databaseChangeLog:
+  - include:
+      file: db/changelogs/001-create-referentiel-tables.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelogs/002-create-medecin-table.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelogs/003-create-patient-table.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelogs/004-create-consultation-initiale-table.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelogs/005-create-consultation-detail-tables.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelogs/006-create-consultation-join-tables.sql
+      relativeToChangelogFile: false

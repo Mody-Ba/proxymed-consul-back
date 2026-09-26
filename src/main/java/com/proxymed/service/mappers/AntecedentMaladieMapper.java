@@ -33,6 +33,15 @@ public class AntecedentMaladieMapper {
                 .build();
     }
 
+    /**
+     * Applique le modele sur une entite managee existante (mutation en place,
+     * necessaire pour que Hibernate suive les changements sur l'entite persistante).
+     */
+    public void applyToEntity(AntecedentMaladie entity, AntecedentMaladieModel model) {
+        entity.setMaladieChronique(maladieChroniqueRepository.getReferenceById(model.maladieChroniqueId()));
+        entity.setPrecision(model.precision());
+    }
+
     public AntecedentMaladieModel toModel(AntecedentMaladie entity) {
         MaladieChronique maladie = entity.getMaladieChronique();
         return AntecedentMaladieModel.builder()
@@ -58,5 +67,16 @@ public class AntecedentMaladieMapper {
      */
     public void synchroniserAvecConsultation(UUID consultationId, AntecedentMaladie antecedent) {
         consultationRepository.getReferenceById(consultationId).getMaladiesChroniques().add(antecedent);
+    }
+
+    /**
+     * Retire l'antecedent de la collection en memoire de la consultation parente, avant sa
+     * suppression. Necessaire des que la collection a pu etre chargee dans la meme session
+     * (ex. via synchroniserAvecConsultation plus tot dans la transaction) : sans cela, la
+     * suppression directe de l'entite (deleteById) peut etre annulee par Hibernate au flush,
+     * qui recree la ligne pour honorer l'etat (perime) de la collection encore chargee.
+     */
+    public void desynchroniserDeConsultation(UUID consultationId, AntecedentMaladie antecedent) {
+        consultationRepository.getReferenceById(consultationId).getMaladiesChroniques().remove(antecedent);
     }
 }

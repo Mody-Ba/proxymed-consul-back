@@ -61,6 +61,22 @@ public class ConstanteVitaleServiceImpl implements ConstanteVitaleService {
         return constanteVitaleMapper.toModel(entity);
     }
 
+    @Override
+    public void supprimer(UUID consultationId, Long constanteId) {
+        consultationService.verifierModifiable(consultationId);
+        ConstanteVitale entity = constanteVitaleRepository.findById(constanteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Constante vitale introuvable : " + constanteId));
+        ConstanteVitaleModel actuel = constanteVitaleMapper.toModel(entity);
+        if (!consultationId.equals(actuel.consultationId())) {
+            throw new ResourceNotFoundException("Constante vitale introuvable pour cette consultation : " + constanteId);
+        }
+        constanteVitaleMapper.desynchroniserDeConsultation(consultationId, entity);
+        constanteVitaleRepository.deleteById(constanteId);
+        if (actuel.type() == TypeConstanteVitale.POIDS || actuel.type() == TypeConstanteVitale.TAILLE) {
+            recalculerImc(consultationId);
+        }
+    }
+
     private void recalculerImc(UUID consultationId) {
         List<ConstanteVitale> entites = constanteVitaleRepository.findByConsultationId(consultationId);
         List<ConstanteVitaleModel> constantes = constanteVitaleMapper.toModelList(entites);

@@ -12,4 +12,8 @@ public interface MedecinService {
     MedecinModel findById(Long id);
 
     MedecinModel create(MedecinModel model);
+
+    MedecinModel update(Long id, MedecinModel model);
+
+    void delete(Long id);
 }

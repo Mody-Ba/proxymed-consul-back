@@ -46,6 +46,22 @@ public class AntecedentMaladieServiceImpl implements AntecedentMaladieService {
     }
 
     @Override
+    public AntecedentMaladieModel modifier(UUID consultationId, Long antecedentId, AntecedentMaladieModel model) {
+        consultationService.verifierModifiable(consultationId);
+        maladieChroniqueService.findById(model.maladieChroniqueId());
+
+        AntecedentMaladie antecedent = antecedentMaladieRepository.findById(antecedentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Antecedent introuvable : " + antecedentId));
+        AntecedentMaladieModel actuel = antecedentMaladieMapper.toModel(antecedent);
+        if (!consultationId.equals(actuel.consultationId())) {
+            throw new ResourceNotFoundException("Antecedent introuvable pour cette consultation : " + antecedentId);
+        }
+        antecedentMaladieMapper.applyToEntity(antecedent, model);
+        antecedent = antecedentMaladieRepository.save(antecedent);
+        return antecedentMaladieMapper.toModel(antecedent);
+    }
+
+    @Override
     public void supprimer(UUID consultationId, Long antecedentId) {
         consultationService.verifierModifiable(consultationId);
         AntecedentMaladie antecedent = antecedentMaladieRepository.findById(antecedentId)
@@ -54,6 +70,7 @@ public class AntecedentMaladieServiceImpl implements AntecedentMaladieService {
         if (!consultationId.equals(model.consultationId())) {
             throw new ResourceNotFoundException("Antecedent introuvable pour cette consultation : " + antecedentId);
         }
+        antecedentMaladieMapper.desynchroniserDeConsultation(consultationId, antecedent);
         antecedentMaladieRepository.deleteById(antecedentId);
     }
 }
