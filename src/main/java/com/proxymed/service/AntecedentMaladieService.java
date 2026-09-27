@@ -14,5 +14,7 @@ public interface AntecedentMaladieService {
 
     AntecedentMaladieModel ajouter(UUID consultationId, AntecedentMaladieModel model);
 
+    AntecedentMaladieModel modifier(UUID consultationId, Long antecedentId, AntecedentMaladieModel model);
+
     void supprimer(UUID consultationId, Long antecedentId);
 }

@@ -7,10 +7,7 @@ import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import org.springframework.data.jpa.domain.Specification;
 
-/**
- * Filtres de recherche du DMI (section 5.3/5.4) : nom, n° dossier, n° DMI,
- * medecin senior, medecin junior affecte, statut, decision d'eligibilite, structure.
- */
+//
 public final class ConsultationSpecifications {
 
     private ConsultationSpecifications() {

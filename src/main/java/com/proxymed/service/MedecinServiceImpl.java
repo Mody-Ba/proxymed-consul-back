@@ -2,8 +2,10 @@ package com.proxymed.service;
 
 import com.proxymed.entity.Medecin;
 import com.proxymed.enums.RoleMedecin;
+import com.proxymed.exception.RegleGestionException;
 import com.proxymed.exception.ResourceNotFoundException;
 import com.proxymed.service.model.MedecinModel;
+import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.repository.MedecinRepository;
 import com.proxymed.service.mappers.MedecinMapper;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ import java.util.List;
 public class MedecinServiceImpl implements MedecinService {
 
     private final MedecinRepository medecinRepository;
+    private final ConsultationRepository consultationRepository;
     private final StructureService structureService;
     private final MedecinMapper medecinMapper;
 
@@ -45,6 +48,26 @@ public class MedecinServiceImpl implements MedecinService {
         }
         Medecin medecin = medecinMapper.toEntity(model);
         return medecinMapper.toModel(medecinRepository.save(medecin));
+    }
+
+    @Override
+    public MedecinModel update(Long id, MedecinModel model) {
+        if (model.structureRattachementId() != null) {
+            structureService.findById(model.structureRattachementId());
+        }
+        Medecin medecin = getEntityById(id);
+        medecinMapper.applyToEntity(medecin, model);
+        return medecinMapper.toModel(medecinRepository.save(medecin));
+    }
+
+    @Override
+    public void delete(Long id) {
+        Medecin medecin = getEntityById(id);
+        if (consultationRepository.existsByMedecinSeniorIdOrMedecinJuniorAffecteId(id, id)) {
+            throw new RegleGestionException(
+                    "Impossible de supprimer ce medecin : il est rattache a au moins une consultation");
+        }
+        medecinRepository.delete(medecin);
     }
 
     /**

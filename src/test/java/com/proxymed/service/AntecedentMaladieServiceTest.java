@@ -1,8 +1,10 @@
 package com.proxymed.service;
 
+import com.proxymed.entity.AntecedentMaladie;
 import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.MaladieChronique;
 import com.proxymed.exception.ConflitEtatException;
+import com.proxymed.exception.ResourceNotFoundException;
 import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.repository.MaladieChroniqueRepository;
 import com.proxymed.service.model.AntecedentMaladieModel;
@@ -14,12 +16,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -72,5 +76,113 @@ class AntecedentMaladieServiceTest {
 
         assertThat(resultat.maladieChroniqueLibelle()).isEqualTo("Diabete");
         assertThat(resultat.precision()).isEqualTo("depuis 2019");
+    }
+
+    @Test
+    void modifier_rejette_siFicheSignee() {
+        UUID consultationId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new ConflitEtatException("La fiche est signee et n'est plus modifiable"))
+                .when(consultationService).verifierModifiable(consultationId);
+
+        AntecedentMaladieModel model = AntecedentMaladieModel.builder().maladieChroniqueId(1L).precision("x").build();
+
+        assertThatThrownBy(() -> antecedentMaladieService.modifier(consultationId, 1L, model))
+                .isInstanceOf(ConflitEtatException.class);
+    }
+
+    @Test
+    void modifier_rejette_siAntecedentIntrouvable() {
+        UUID consultationId = UUID.randomUUID();
+        when(maladieChroniqueService.findById(5L)).thenReturn(
+                MaladieChroniqueModel.builder().id(5L).libelle("Diabete").actif(true).build());
+        when(antecedentMaladieRepository.findById(1L)).thenReturn(Optional.empty());
+
+        AntecedentMaladieModel model = AntecedentMaladieModel.builder().maladieChroniqueId(5L).precision("x").build();
+
+        assertThatThrownBy(() -> antecedentMaladieService.modifier(consultationId, 1L, model))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void modifier_rejette_siAntecedentDuneAutreConsultation() {
+        ConsultationInitiale autreConsultation = ConsultationInitiale.builder().id(UUID.randomUUID()).build();
+        MaladieChronique diabete = MaladieChronique.builder().id(5L).libelle("Diabete").build();
+        AntecedentMaladie entity = AntecedentMaladie.builder().id(1L).consultation(autreConsultation)
+                .maladieChronique(diabete).precision("ancien").build();
+        when(maladieChroniqueService.findById(5L)).thenReturn(
+                MaladieChroniqueModel.builder().id(5L).libelle("Diabete").actif(true).build());
+        when(antecedentMaladieRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        UUID consultationId = UUID.randomUUID();
+        AntecedentMaladieModel model = AntecedentMaladieModel.builder().maladieChroniqueId(5L).precision("x").build();
+
+        assertThatThrownBy(() -> antecedentMaladieService.modifier(consultationId, 1L, model))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void modifier_appliqueLesModificationsSurLAntecedentExistant() {
+        ConsultationInitiale consultation = ConsultationInitiale.builder().id(UUID.randomUUID()).build();
+        MaladieChronique diabete = MaladieChronique.builder().id(5L).libelle("Diabete").build();
+        MaladieChronique hta = MaladieChronique.builder().id(6L).libelle("HTA").build();
+        AntecedentMaladie entity = AntecedentMaladie.builder().id(1L).consultation(consultation)
+                .maladieChronique(diabete).precision("ancienne precision").build();
+
+        when(maladieChroniqueService.findById(6L)).thenReturn(
+                MaladieChroniqueModel.builder().id(6L).libelle("HTA").actif(true).build());
+        when(antecedentMaladieRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(maladieChroniqueRepository.getReferenceById(6L)).thenReturn(hta);
+
+        AntecedentMaladieModel model = AntecedentMaladieModel.builder().maladieChroniqueId(6L).precision("nouvelle precision").build();
+        var resultat = antecedentMaladieService.modifier(consultation.getId(), 1L, model);
+
+        assertThat(resultat.maladieChroniqueLibelle()).isEqualTo("HTA");
+        assertThat(resultat.precision()).isEqualTo("nouvelle precision");
+    }
+
+    @Test
+    void supprimer_rejette_siFicheSignee() {
+        UUID consultationId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new ConflitEtatException("La fiche est signee et n'est plus modifiable"))
+                .when(consultationService).verifierModifiable(consultationId);
+
+        assertThatThrownBy(() -> antecedentMaladieService.supprimer(consultationId, 1L))
+                .isInstanceOf(ConflitEtatException.class);
+    }
+
+    @Test
+    void supprimer_rejette_siAntecedentIntrouvable() {
+        UUID consultationId = UUID.randomUUID();
+        when(antecedentMaladieRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> antecedentMaladieService.supprimer(consultationId, 1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void supprimer_rejette_siAntecedentDuneAutreConsultation() {
+        ConsultationInitiale autreConsultation = ConsultationInitiale.builder().id(UUID.randomUUID()).build();
+        MaladieChronique diabete = MaladieChronique.builder().id(5L).libelle("Diabete").build();
+        AntecedentMaladie entity = AntecedentMaladie.builder().id(1L).consultation(autreConsultation)
+                .maladieChronique(diabete).precision("x").build();
+        when(antecedentMaladieRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        UUID consultationId = UUID.randomUUID();
+        assertThatThrownBy(() -> antecedentMaladieService.supprimer(consultationId, 1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void supprimer_supprimeLAntecedent() {
+        ConsultationInitiale consultation = ConsultationInitiale.builder().id(UUID.randomUUID()).build();
+        MaladieChronique diabete = MaladieChronique.builder().id(5L).libelle("Diabete").build();
+        AntecedentMaladie entity = AntecedentMaladie.builder().id(1L).consultation(consultation)
+                .maladieChronique(diabete).precision("x").build();
+        when(antecedentMaladieRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(consultationRepository.getReferenceById(consultation.getId())).thenReturn(consultation);
+
+        antecedentMaladieService.supprimer(consultation.getId(), 1L);
+
+        verify(antecedentMaladieRepository).deleteById(1L);
     }
 }

@@ -12,12 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * La seule entite JPA visible dans cette classe est ExamenParAppareil (l'aggregat propre a
- * ce service). ConsultationInitiale (aggregat parent) n'est jamais manipulee ici : la
- * verification qu'elle existe et est modifiable passe par ConsultationService.verifierModifiable,
- * et le rattachement JPA (id -> reference) est delegue au mapper DB.
- */
+
 @Service
 @RequiredArgsConstructor
 @Transactional

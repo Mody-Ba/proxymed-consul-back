@@ -9,4 +9,6 @@ public interface ConstanteVitaleService {
     ConstanteVitaleModel ajouter(UUID consultationId, ConstanteVitaleModel model);
 
     ConstanteVitaleModel modifier(UUID consultationId, Long constanteId, ConstanteVitaleModel model);
+
+    void supprimer(UUID consultationId, Long constanteId);
 }

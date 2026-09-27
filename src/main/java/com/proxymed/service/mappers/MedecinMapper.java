@@ -31,6 +31,19 @@ public class MedecinMapper {
                 .build();
     }
 
+    /**
+     * Applique le modele sur une entite managee existante (mutation en place,
+     * necessaire pour que Hibernate suive les changements sur l'entite persistante).
+     */
+    public void applyToEntity(Medecin entity, MedecinModel model) {
+        entity.setNom(model.nom());
+        entity.setPrenom(model.prenom());
+        entity.setNumeroOrdre(model.numeroOrdre());
+        entity.setRole(model.role());
+        entity.setStructureRattachement(model.structureRattachementId() != null
+                ? structureRepository.getReferenceById(model.structureRattachementId()) : null);
+    }
+
     public MedecinModel toModel(Medecin entity) {
         Structure structure = entity.getStructureRattachement();
         return MedecinModel.builder()

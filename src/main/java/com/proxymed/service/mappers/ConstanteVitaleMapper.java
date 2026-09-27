@@ -74,4 +74,15 @@ public class ConstanteVitaleMapper {
     public void synchroniserAvecConsultation(UUID consultationId, ConstanteVitale constante) {
         consultationRepository.getReferenceById(consultationId).getConstantesVitales().add(constante);
     }
+
+    /**
+     * Retire la constante de la collection en memoire de la consultation parente, avant sa
+     * suppression. Necessaire des que la collection a pu etre chargee dans la meme session
+     * (ex. via synchroniserAvecConsultation plus tot dans la transaction) : sans cela, la
+     * suppression directe de l'entite (deleteById) peut etre annulee par Hibernate au flush,
+     * qui recree la ligne pour honorer l'etat (perime) de la collection encore chargee.
+     */
+    public void desynchroniserDeConsultation(UUID consultationId, ConstanteVitale constante) {
+        consultationRepository.getReferenceById(consultationId).getConstantesVitales().remove(constante);
+    }
 }

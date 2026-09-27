@@ -1,7 +1,7 @@
-package com.proxymed.controller;
+package com.proxymed.integration;
 
-import com.proxymed.entity.SituationSociale;
-import com.proxymed.repository.SituationSocialeRepository;
+import com.proxymed.entity.MaladieChronique;
+import com.proxymed.repository.MaladieChroniqueRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,21 +18,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class SituationSocialeApiIntegrationTest {
+class MaladieChroniqueIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private SituationSocialeRepository situationSocialeRepository;
+    private MaladieChroniqueRepository maladieChroniqueRepository;
 
     @Test
-    void listeSeulementLesElementsActifs() throws Exception {
-        situationSocialeRepository.save(SituationSociale.builder().libelle("Isolement familial").actif(true).build());
-        situationSocialeRepository.save(SituationSociale.builder().libelle("Ancienne situation").actif(false).build());
+    void findAll_neRetourneQueLesMaladiesActives() throws Exception {
+        maladieChroniqueRepository.save(MaladieChronique.builder().libelle("Diabete").actif(true).build());
+        maladieChroniqueRepository.save(MaladieChronique.builder().libelle("Obsolete").actif(false).build());
 
-        mockMvc.perform(get("/api/referentiels/situations-sociales"))
+        mockMvc.perform(get("/api/referentiels/maladies-chroniques"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].libelle").value("Isolement familial"));
+                .andExpect(jsonPath("$[*].libelle", hasSize(1)))
+                .andExpect(jsonPath("$[0].libelle", is("Diabete")));
     }
 }

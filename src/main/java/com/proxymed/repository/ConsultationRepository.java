@@ -15,4 +15,6 @@ import java.util.UUID;
 @Repository
 public interface ConsultationRepository extends JpaRepository<ConsultationInitiale, UUID>,
         JpaSpecificationExecutor<ConsultationInitiale> {
+
+    boolean existsByMedecinSeniorIdOrMedecinJuniorAffecteId(Long medecinSeniorId, Long medecinJuniorAffecteId);
 }

@@ -1,7 +1,7 @@
-package com.proxymed.controller;
+package com.proxymed.integration;
 
-import com.proxymed.entity.Structure;
-import com.proxymed.repository.StructureRepository;
+import com.proxymed.entity.SituationSociale;
+import com.proxymed.repository.SituationSocialeRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,21 +18,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class StructureApiIntegrationTest {
+class SituationSocialeIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private StructureRepository structureRepository;
+    private SituationSocialeRepository situationSocialeRepository;
 
     @Test
-    void listeSeulementLesStructuresActives() throws Exception {
-        structureRepository.save(Structure.builder().libelle("Centre de sante Grand Dakar").actif(true).build());
-        structureRepository.save(Structure.builder().libelle("Ancien centre ferme").actif(false).build());
+    void findAll_neRetourneQueLesSituationsActives() throws Exception {
+        situationSocialeRepository.save(SituationSociale.builder().libelle("Isolement").actif(true).build());
+        situationSocialeRepository.save(SituationSociale.builder().libelle("Obsolete").actif(false).build());
 
-        mockMvc.perform(get("/api/referentiels/structures"))
+        mockMvc.perform(get("/api/referentiels/situations-sociales"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].libelle").value("Centre de sante Grand Dakar"));
+                .andExpect(jsonPath("$[*].libelle", hasSize(1)))
+                .andExpect(jsonPath("$[0].libelle", is("Isolement")));
     }
 }

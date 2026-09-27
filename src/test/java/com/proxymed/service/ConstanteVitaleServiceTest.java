@@ -5,6 +5,7 @@ import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.enums.StatutConsultation;
 import com.proxymed.enums.TypeConstanteVitale;
 import com.proxymed.exception.ConflitEtatException;
+import com.proxymed.exception.ResourceNotFoundException;
 import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.service.model.ConstanteVitaleModel;
 import com.proxymed.repository.ConstanteVitaleRepository;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -90,5 +92,49 @@ class ConstanteVitaleServiceTest {
                 .anyMatch(c -> c.getType() == TypeConstanteVitale.IMC
                         && c.getValeur() != null && c.getValeur().compareTo(new BigDecimal("22.9")) == 0);
         assertThat(imcSaved).isTrue();
+    }
+
+    @Test
+    void supprimer_rejette_siFicheSignee() {
+        UUID consultationId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new ConflitEtatException("La fiche est signee et n'est plus modifiable"))
+                .when(consultationService).verifierModifiable(consultationId);
+
+        assertThatThrownBy(() -> constanteVitaleService.supprimer(consultationId, 1L))
+                .isInstanceOf(ConflitEtatException.class);
+    }
+
+    @Test
+    void supprimer_rejette_siConstanteIntrouvable() {
+        UUID consultationId = UUID.randomUUID();
+        when(constanteVitaleRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> constanteVitaleService.supprimer(consultationId, 1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void supprimer_rejette_siConstanteDuneAutreConsultation() {
+        ConsultationInitiale autreConsultation = ConsultationInitiale.builder().id(UUID.randomUUID()).build();
+        ConstanteVitale entity = ConstanteVitale.builder().id(1L).consultation(autreConsultation)
+                .type(TypeConstanteVitale.FC).valeur(BigDecimal.valueOf(80)).build();
+        when(constanteVitaleRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        UUID consultationId = UUID.randomUUID();
+        assertThatThrownBy(() -> constanteVitaleService.supprimer(consultationId, 1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void supprimer_supprimeLaConstante() {
+        ConsultationInitiale consultation = ConsultationInitiale.builder().id(UUID.randomUUID()).build();
+        ConstanteVitale entity = ConstanteVitale.builder().id(1L).consultation(consultation)
+                .type(TypeConstanteVitale.FC).valeur(BigDecimal.valueOf(80)).build();
+        when(constanteVitaleRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(consultationRepository.getReferenceById(consultation.getId())).thenReturn(consultation);
+
+        constanteVitaleService.supprimer(consultation.getId(), 1L);
+
+        verify(constanteVitaleRepository).deleteById(1L);
     }
 }
