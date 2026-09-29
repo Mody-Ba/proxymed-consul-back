@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<!--
+  Fiche 1 - Evaluation medicale initiale d'eligibilite (section 5.2 du cahier des charges).
+  Rendu par PdfGenerationService (Thymeleaf -> XHTML -> openhtmltopdf) : le HTML produit doit
+  rester du XHTML bien forme (pas d'entites HTML nommees type &nbsp; -> utiliser &#160;),
+  et la mise en page n'utilise que ce que supporte openhtmltopdf (CSS 2.1 : tables/floats, pas de flexbox).
+  Variables : c = ConsultationModel complet, qrCode = PNG base64 du QR code (UUID de la consultation),
+  fuseauHoraire = ZoneId d'affichage des horodatages (Instant) de signature.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head>
+    <meta charset="UTF-8"/>
+    <title th:text="'Fiche 1 - ' + ${c.patient?.nomComplet}">Fiche 1</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 14mm 12mm 16mm 12mm;
+            @bottom-left {
+                content: "PROXYMED - Fiche 1 - Evaluation medicale initiale d'eligibilite";
+                font-family: Helvetica, sans-serif;
+                font-size: 7pt;
+                color: #666666;
+            }
+            @bottom-right {
+                content: "Page " counter(page) " / " counter(pages);
+                font-family: Helvetica, sans-serif;
+                font-size: 7pt;
+                color: #666666;
+            }
+        }
+
+        body {
+            font-family: Helvetica, sans-serif;
+            font-size: 9pt;
+            color: #1a1a1a;
+            line-height: 1.3;
+        }
+
+        /* En-tete */
+        .entete { width: 100%; border-collapse: collapse; border-bottom: 2px solid #1f4e79; margin-bottom: 8px; }
+        .entete td { vertical-align: top; padding: 0 0 6px 0; }
+        .entete .titre { font-size: 15pt; font-weight: bold; color: #1f4e79; }
+        .entete .sous-titre { font-size: 10pt; font-weight: bold; margin-top: 2px; }
+        .entete .meta { margin-top: 6px; font-size: 8.5pt; }
+        .entete .meta span.lbl { color: #555555; }
+        .entete .qr { width: 100px; text-align: center; }
+        .entete .qr img { width: 90px; height: 90px; }
+        .statut { display: inline-block; padding: 1px 6px; border: 1px solid #1f4e79; color: #1f4e79; font-weight: bold; font-size: 8pt; }
+
+        /* Sections */
+        .section { margin-top: 8px; page-break-inside: avoid; }
+        .section h2 {
+            font-size: 10pt;
+            margin: 0 0 4px 0;
+            padding: 3px 6px;
+            background-color: #1f4e79;
+            color: #ffffff;
+        }
+        .section h3 { font-size: 9pt; margin: 6px 0 3px 0; color: #1f4e79; }
+
+        /* Grille libelle / valeur */
+        table.grille { width: 100%; border-collapse: collapse; }
+        table.grille td { padding: 2px 4px; vertical-align: top; border-bottom: 1px dotted #bbbbbb; }
+        table.grille td.lbl { width: 22%; color: #555555; }
+        table.grille td.val { width: 28%; }
+        table.grille td.val-large { width: 78%; }
+
+        /* Tableaux de donnees */
+        table.donnees { width: 100%; border-collapse: collapse; margin-top: 2px; }
+        table.donnees th { background-color: #e8eef5; text-align: left; font-size: 8.5pt; padding: 3px 4px; border: 1px solid #b0c0d4; }
+        table.donnees td { padding: 3px 4px; border: 1px solid #b0c0d4; vertical-align: top; }
+        tr.alerte td { color: #b00020; font-weight: bold; }
+
+        /* Cases a cocher (police PDF standard : pas de glyphe case a cocher, on dessine la case en CSS) */
+        .choix { display: inline-block; margin-right: 10px; white-space: nowrap; }
+        .case {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            line-height: 8px;
+            border: 1px solid #333333;
+            text-align: center;
+            font-size: 7pt;
+            font-weight: bold;
+            margin-right: 3px;
+            vertical-align: 1px;
+        }
+        .coche { background-color: #1f4e79; color: #ffffff; border-color: #1f4e79; }
+
+        .texte-libre { white-space: pre-wrap; }
+        .vide { color: #999999; font-style: italic; }
+        .decision-eligible { color: #1b6e20; font-weight: bold; }
+        .decision-non-eligible { color: #b00020; font-weight: bold; }
+
+        /* Signatures */
+        table.signatures { width: 100%; border-collapse: collapse; margin-top: 2px; }
+        table.signatures td { width: 33.33%; border: 1px solid #b0c0d4; padding: 5px; vertical-align: top; height: 70px; }
+        table.signatures .role { font-weight: bold; color: #1f4e79; margin-bottom: 3px; }
+        table.signatures .etat-signe { color: #1b6e20; font-weight: bold; }
+        table.signatures .etat-non-signe { color: #999999; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<!-- ============================ EN-TETE ============================ -->
+<table class="entete">
+    <tr>
+        <td>
+            <div class="titre">PROXYMED</div>
+            <div class="sous-titre">Fiche 1 - Évaluation médicale initiale d'éligibilité</div>
+            <div class="meta">
+                <span class="lbl">N° dossier PROXYMED :</span>
+                <strong th:text="${c.patient?.numeroDossierProxymed} ?: '-'">DOS-0001</strong>
+                &#160;&#160;
+                <span class="lbl">N° DMI :</span>
+                <strong th:text="${c.patient?.numeroDmi} ?: '-'">DMI-0001</strong>
+            </div>
+            <div class="meta">
+                <span class="lbl">Date :</span>
+                <strong th:text="${c.dateConsultation != null} ? ${#temporals.format(c.dateConsultation, 'dd/MM/yyyy')} : '-'">01/01/2026</strong>
+                &#160;&#160;
+                <span class="lbl">Heure :</span>
+                <strong th:text="${c.heureConsultation != null} ? ${#temporals.format(c.heureConsultation, 'HH:mm')} : '-'">10:00</strong>
+                &#160;&#160;
+                <span class="lbl">Statut :</span>
+                <span class="statut" th:text="${c.statut}">BROUILLON</span>
+            </div>
+            <div class="meta">
+                <span class="lbl">Identifiant de la fiche :</span>
+                <span th:text="${c.id}">00000000-0000-0000-0000-000000000000</span>
+            </div>
+        </td>
+        <td class="qr">
+            <img th:src="'data:image/png;base64,' + ${qrCode}" alt="QR code"/>
+        </td>
+    </tr>
+</table>
+
+<!-- ============================ 1. IDENTIFICATION ============================ -->
+<div class="section">
+    <h2>1. Identification du patient</h2>
+    <table class="grille">
+        <tr>
+            <td class="lbl">Nom complet</td>
+            <td class="val-large" colspan="3"><strong th:text="${c.patient?.nomComplet} ?: '-'">Nom</strong></td>
+        </tr>
+        <tr>
+            <td class="lbl">Date de naissance</td>
+            <td class="val" th:text="${c.patient?.dateNaissance != null} ? ${#temporals.format(c.patient.dateNaissance, 'dd/MM/yyyy')} : '-'">-</td>
+            <td class="lbl">Âge</td>
+            <td class="val" th:text="${c.patient?.age != null} ? ${c.patient.age} + ' ans' : '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Sexe</td>
+            <td class="val">
+                <th:block th:replace="~{::case(${c.patient?.sexe?.name() == 'M'}, 'Masculin')}"/>
+                <th:block th:replace="~{::case(${c.patient?.sexe?.name() == 'F'}, 'Féminin')}"/>
+            </td>
+            <td class="lbl">Téléphone</td>
+            <td class="val" th:text="${c.patient?.telephone} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Adresse</td>
+            <td class="val-large" colspan="3" th:text="${c.patient?.adresseDomicile} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Commune</td>
+            <td class="val" th:text="${c.patient?.commune} ?: '-'">-</td>
+            <td class="lbl">Quartier</td>
+            <td class="val" th:text="${c.patient?.quartier} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Personne à contacter</td>
+            <td class="val" th:text="${c.patient?.personneAContacterNom} ?: '-'">-</td>
+            <td class="lbl">Tél. personne à contacter</td>
+            <td class="val" th:text="${c.patient?.personneAContacterTelephone} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Couverture sociale</td>
+            <td class="val-large" colspan="3">
+                <th:block th:replace="~{::case(${c.patient?.couvertureSociale?.name() == 'CMU'}, 'CMU')}"/>
+                <th:block th:replace="~{::case(${c.patient?.couvertureSociale?.name() == 'IPM'}, 'IPM')}"/>
+                <th:block th:replace="~{::case(${c.patient?.couvertureSociale?.name() == 'ASSURANCE_PRIVEE'}, 'Assurance privée')}"/>
+                <th:block th:replace="~{::case(${c.patient?.couvertureSociale?.name() == 'AUCUNE'}, 'Aucune')}"/>
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">Médecin senior</td>
+            <td class="val" th:text="${c.medecinSenior != null} ? 'Dr ' + ${c.medecinSenior.prenom} + ' ' + ${c.medecinSenior.nom} : '-'">-</td>
+            <td class="lbl">N° d'ordre / Structure</td>
+            <td class="val" th:text="${c.medecinSenior != null} ? (${c.medecinSenior.numeroOrdre} ?: '-') + ' / ' + (${c.medecinSenior.structureRattachementLibelle} ?: '-') : '-'">-</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================ 2. MOTIF ============================ -->
+<div class="section">
+    <h2>2. Motif de consultation</h2>
+    <table class="grille">
+        <tr>
+            <td class="lbl">Origine de la demande</td>
+            <td class="val-large">
+                <th:block th:replace="~{::case(${c.origineDemande?.name() == 'AUTO_REFERENCE'}, 'Auto-référence')}"/>
+                <th:block th:replace="~{::case(${c.origineDemande?.name() == 'SAMU'}, 'SAMU')}"/>
+                <th:block th:replace="~{::case(${c.origineDemande?.name() == 'DASS'}, 'DASS')}"/>
+                <th:block th:replace="~{::case(${c.origineDemande?.name() == 'FAMILLE'}, 'Famille')}"/>
+                <th:block th:replace="~{::case(${c.origineDemande?.name() == 'AUTRE'}, 'Autre')}"/>
+                <span th:if="${c.origineDemandeAutrePrecision != null}" th:text="'(' + ${c.origineDemandeAutrePrecision} + ')'">(précision)</span>
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">Motif principal</td>
+            <td class="val-large texte-libre" th:text="${c.motifPrincipalConsultation} ?: '-'">-</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================ 3. ANTECEDENTS ============================ -->
+<div class="section">
+    <h2>3. Antécédents médicaux</h2>
+    <h3>Maladies chroniques</h3>
+    <table class="donnees" th:if="${!#lists.isEmpty(c.maladiesChroniques)}">
+        <tr><th style="width: 40%;">Maladie</th><th>Précision</th></tr>
+        <tr th:each="m : ${c.maladiesChroniques}">
+            <td th:text="${m.maladieChroniqueLibelle}">HTA</td>
+            <td th:text="${m.precision} ?: '-'">-</td>
+        </tr>
+    </table>
+    <div class="vide" th:if="${#lists.isEmpty(c.maladiesChroniques)}">Aucune maladie chronique renseignée</div>
+    <table class="grille" style="margin-top: 4px;">
+        <tr th:if="${c.precisionsMaladiesChroniques != null}">
+            <td class="lbl">Précisions</td>
+            <td class="val-large texte-libre" colspan="3" th:text="${c.precisionsMaladiesChroniques}">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Allergies connues</td>
+            <td class="val">
+                <th:block th:replace="~{::oui-non(${c.allergiesConnues})}"/>
+            </td>
+            <td class="lbl">Allergies médicamenteuses</td>
+            <td class="val texte-libre" th:text="${c.precisionsAllergiesMedicamenteuses} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Hospitalisations antérieures</td>
+            <td class="val"><th:block th:replace="~{::oui-non(${c.hospitalisationsAnterieures})}"/></td>
+            <td class="lbl">Chirurgies antérieures</td>
+            <td class="val"><th:block th:replace="~{::oui-non(${c.chirurgiesAnterieures})}"/></td>
+        </tr>
+        <tr th:if="${c.detailsHospitalisationsChirurgies != null}">
+            <td class="lbl">Détails</td>
+            <td class="val-large texte-libre" colspan="3" th:text="${c.detailsHospitalisationsChirurgies}">-</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================ 4. HABITUDES DE VIE ============================ -->
+<div class="section">
+    <h2>4. Habitudes de vie et facteurs de risque</h2>
+    <div th:if="${!#lists.isEmpty(c.facteursDeRisque)}">
+        <span class="choix" th:each="f : ${c.facteursDeRisque}">
+            <span class="case coche">X</span><span th:text="${f.libelle}">Tabac</span>
+        </span>
+    </div>
+    <div class="vide" th:if="${#lists.isEmpty(c.facteursDeRisque)}">Aucun facteur de risque renseigné</div>
+</div>
+
+<!-- ============================ 5. EXAMEN CLINIQUE ============================ -->
+<div class="section">
+    <h2>5. Examen clinique</h2>
+    <h3>Constantes vitales</h3>
+    <table class="donnees" th:if="${!#lists.isEmpty(c.constantesVitales)}"
+           th:with="unites=${ {'TA':'mmHg', 'FC':'bpm', 'FR':'cycles/min', 'SPO2':'%', 'TEMPERATURE':'°C', 'POIDS':'kg', 'TAILLE':'cm', 'IMC':'kg/m²', 'GLYCEMIE_CAPILLAIRE':'g/L'} },
+                    libelles=${ {'TA':'Tension artérielle', 'FC':'Fréquence cardiaque', 'FR':'Fréquence respiratoire', 'SPO2':'SpO2', 'TEMPERATURE':'Température', 'POIDS':'Poids', 'TAILLE':'Taille', 'IMC':'IMC', 'GLYCEMIE_CAPILLAIRE':'Glycémie capillaire'} }">
+        <tr>
+            <th style="width: 28%;">Constante</th>
+            <th style="width: 16%;">Valeur</th>
+            <th style="width: 10%;">Heure</th>
+            <th style="width: 14%;">Interprétation</th>
+            <th>Commentaire</th>
+        </tr>
+        <tr th:each="cv : ${c.constantesVitales}" th:classappend="${cv.estAlerte == true} ? 'alerte'">
+            <td th:text="${libelles[cv.type.name()]}">Poids</td>
+            <td th:text="${cv.valeur} + ' ' + ${unites[cv.type.name()]}">70 kg</td>
+            <td th:text="${cv.heure != null} ? ${#temporals.format(cv.heure, 'HH:mm')} : '-'">-</td>
+            <td th:text="${cv.estAlerte == true} ? 'ALERTE' : (${cv.estNormal == true} ? 'Normal' : (${cv.estNormal == false} ? 'Anormal' : '-'))">Normal</td>
+            <td th:text="${cv.commentaire} ?: ''"></td>
+        </tr>
+    </table>
+    <div class="vide" th:if="${#lists.isEmpty(c.constantesVitales)}">Aucune constante vitale saisie</div>
+
+    <h3>Examen par appareil</h3>
+    <table class="grille" th:if="${c.examenParAppareil != null}">
+        <tr>
+            <td class="lbl">État général</td>
+            <td class="val-large texte-libre" th:text="${c.examenParAppareil.etatGeneral} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Cardio-vasculaire</td>
+            <td class="val-large texte-libre" th:text="${c.examenParAppareil.cardioVasculaire} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Respiratoire</td>
+            <td class="val-large texte-libre" th:text="${c.examenParAppareil.respiratoire} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Digestif</td>
+            <td class="val-large texte-libre" th:text="${c.examenParAppareil.digestif} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Neurologique</td>
+            <td class="val-large texte-libre" th:text="${c.examenParAppareil.neurologique} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Locomoteur / cutané / autre</td>
+            <td class="val-large texte-libre" th:text="${c.examenParAppareil.locomoteurCutaneAutre} ?: '-'">-</td>
+        </tr>
+    </table>
+    <div class="vide" th:if="${c.examenParAppareil == null}">Examen par appareil non renseigné</div>
+</div>
+
+<!-- ============================ 6. EVALUATION SOCIALE ============================ -->
+<div class="section">
+    <h2>6. Évaluation sociale</h2>
+    <table class="grille">
+        <tr>
+            <td class="lbl">Situation sociale</td>
+            <td class="val-large">
+                <span class="choix" th:each="s : ${c.situationSociale}">
+                    <span class="case coche">X</span><span th:text="${s.libelle}">Vit seul</span>
+                </span>
+                <span class="vide" th:if="${#lists.isEmpty(c.situationSociale)}">Non renseignée</span>
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">Niveau d'autonomie</td>
+            <td class="val-large">
+                <th:block th:replace="~{::case(${c.niveauAutonomie?.name() == 'TOTALEMENT_AUTONOME'}, 'Totalement autonome')}"/>
+                <th:block th:replace="~{::case(${c.niveauAutonomie?.name() == 'PARTIELLEMENT_DEPENDANT'}, 'Partiellement dépendant')}"/>
+                <th:block th:replace="~{::case(${c.niveauAutonomie?.name() == 'TOTALEMENT_DEPENDANT'}, 'Totalement dépendant')}"/>
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">Risque d'isolement</td>
+            <td class="val-large">
+                <th:block th:replace="~{::case(${c.risqueIsolement?.name() == 'FAIBLE'}, 'Faible')}"/>
+                <th:block th:replace="~{::case(${c.risqueIsolement?.name() == 'MODERE'}, 'Modéré')}"/>
+                <th:block th:replace="~{::case(${c.risqueIsolement?.name() == 'ELEVE'}, 'Élevé')}"/>
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">Niveau de précarité</td>
+            <td class="val-large">
+                <th:block th:replace="~{::case(${c.niveauPrecarite?.name() == 'AUCUNE'}, 'Aucune')}"/>
+                <th:block th:replace="~{::case(${c.niveauPrecarite?.name() == 'MODEREE'}, 'Modérée')}"/>
+                <th:block th:replace="~{::case(${c.niveauPrecarite?.name() == 'SEVERE'}, 'Sévère')}"/>
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">Besoins sociaux identifiés</td>
+            <td class="val-large texte-libre" th:text="${c.besoinsSociauxIdentifies} ?: '-'">-</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================ 7. DIAGNOSTIC / PLAN DE SUIVI ============================ -->
+<div class="section">
+    <h2>7. Diagnostic et plan de suivi</h2>
+    <table class="grille">
+        <tr>
+            <td class="lbl">Résumé syndromique (CIM-10)</td>
+            <td class="val-large texte-libre" colspan="3" th:text="${c.resumeSyndromiqueCim10} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Décision d'éligibilité</td>
+            <td class="val-large" colspan="3">
+                <span th:if="${c.decisionEligibilite?.name() == 'ELIGIBLE'}" class="decision-eligible">ÉLIGIBLE</span>
+                <span th:if="${c.decisionEligibilite?.name() == 'NON_ELIGIBLE'}" class="decision-non-eligible">NON ÉLIGIBLE</span>
+                <span th:if="${c.decisionEligibilite == null}" class="vide">Non renseignée</span>
+            </td>
+        </tr>
+        <tr th:if="${c.motifNonEligibilite != null}">
+            <td class="lbl">Motif de non-éligibilité</td>
+            <td class="val-large texte-libre" colspan="3" th:text="${c.motifNonEligibilite}">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Médecin junior affecté</td>
+            <td class="val" th:text="${c.medecinJuniorAffecte != null} ? 'Dr ' + ${c.medecinJuniorAffecte.prenom} + ' ' + ${c.medecinJuniorAffecte.nom} : '-'">-</td>
+            <td class="lbl">Fréquence des visites</td>
+            <td class="val">
+                <th:block th:replace="~{::case(${c.frequenceVisitesSuivi?.name() == 'HEBDOMADAIRE'}, 'Hebdomadaire')}"/>
+                <th:block th:replace="~{::case(${c.frequenceVisitesSuivi?.name() == 'BIMENSUELLE'}, 'Bimensuelle')}"/>
+                <th:block th:replace="~{::case(${c.frequenceVisitesSuivi?.name() == 'MENSUELLE'}, 'Mensuelle')}"/>
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">Plan de suivi personnalisé</td>
+            <td class="val-large texte-libre" colspan="3" th:text="${c.planSuiviPersonnalise} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Traitement prescrit</td>
+            <td class="val-large texte-libre" colspan="3" th:text="${c.traitementPrescrit} ?: '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Examens biologiques</td>
+            <td class="val-large" colspan="3">
+                <th:block th:replace="~{::case(${c.examensBiologiquesPrescrits?.name() == 'BILAN_COMPLET'}, 'Bilan complet')}"/>
+                <th:block th:replace="~{::case(${c.examensBiologiquesPrescrits?.name() == 'PARTIEL'}, 'Partiel')}"/>
+                <th:block th:replace="~{::case(${c.examensBiologiquesPrescrits?.name() == 'AUCUN'}, 'Aucun')}"/>
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">Prochaine consultation senior</td>
+            <td class="val" th:text="${c.dateProchaineConsultationSenior != null} ? ${#temporals.format(c.dateProchaineConsultationSenior, 'dd/MM/yyyy')} : '-'">-</td>
+            <td class="lbl">Délai recommandé</td>
+            <td class="val" th:text="${c.delaiRecommande} ?: '-'">-</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================ 8. VALIDATION / SIGNATURES ============================ -->
+<div class="section">
+    <h2>8. Validation et signatures</h2>
+    <table class="signatures">
+        <tr>
+            <td>
+                <div class="role">Médecin senior</div>
+                <div th:text="${c.medecinSenior != null} ? 'Dr ' + ${c.medecinSenior.prenom} + ' ' + ${c.medecinSenior.nom} : '-'">Dr X</div>
+                <th:block th:replace="~{::signature(${c.signatureMedecinSenior}, ${c.horodatageSignatureMedecinSenior}, 'Signé')}"/>
+            </td>
+            <td>
+                <div class="role">Point focal DASS</div>
+                <div th:text="${c.nomPointFocalDass} ?: '-'">M. Y</div>
+                <th:block th:replace="~{::signature(${c.signaturePointFocalDass}, ${c.horodatageSignaturePointFocalDass}, 'Signé')}"/>
+            </td>
+            <td>
+                <div class="role">Directeur du SAMU</div>
+                <div th:text="${c.nomDirecteurSamu} ?: '-'">Pr Z</div>
+                <th:block th:replace="~{::signature(${c.visaDirecteurSamu}, ${c.horodatageVisaDirecteurSamu}, 'Visé')}"/>
+            </td>
+        </tr>
+    </table>
+    <h3>Saisie DMI</h3>
+    <table class="grille">
+        <tr>
+            <td class="lbl">N° fiche DMI</td>
+            <td class="val" th:text="${c.numeroFicheDmi} ?: '-'">-</td>
+            <td class="lbl">Date de saisie</td>
+            <td class="val" th:text="${c.dateSaisieDmi != null} ? ${#temporals.format(c.dateSaisieDmi, 'dd/MM/yyyy')} : '-'">-</td>
+        </tr>
+        <tr>
+            <td class="lbl">Saisie par</td>
+            <td class="val-large" colspan="3" th:text="${c.saisiePar} ?: '-'">-</td>
+        </tr>
+    </table>
+</div>
+
+<!--
+  Fragments reutilisables. th:remove="all" : le bloc n'apparait pas dans le rendu,
+  mais les fragments restent selectionnables via ~{::nom(...)}.
+-->
+<div th:remove="all">
+    <span th:fragment="case(coche, libelle)" class="choix"><span class="case" th:classappend="${coche} ? 'coche'" th:text="${coche} ? 'X' : '&#160;'"></span><span th:text="${libelle}">Libellé</span></span>
+
+    <th:block th:fragment="oui-non(valeur)">
+        <span class="choix"><span class="case" th:classappend="${valeur == true} ? 'coche'" th:text="${valeur == true} ? 'X' : '&#160;'"></span>Oui</span>
+        <span class="choix"><span class="case" th:classappend="${valeur == false} ? 'coche'" th:text="${valeur == false} ? 'X' : '&#160;'"></span>Non</span>
+    </th:block>
+
+    <th:block th:fragment="signature(signe, horodatage, libelleSigne)">
+        <div th:if="${signe == true}" class="etat-signe"
+             th:text="${libelleSigne} + (${horodatage != null} ? ' le ' + ${#temporals.format(horodatage.atZone(fuseauHoraire), 'dd/MM/yyyy HH:mm')} : '')">Signé le ...</div>
+        <div th:unless="${signe == true}" class="etat-non-signe">Non signé</div>
+    </th:block>
+</div>
+
+</body>
+</html>
