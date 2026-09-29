@@ -10,7 +10,11 @@ import com.proxymed.service.model.ConsultationUpdateRequest;
 import com.proxymed.service.ConsultationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -64,6 +68,19 @@ public class ConsultationController {
     @GetMapping("/{id}")
     public ConsultationResponse findById(@PathVariable UUID id) {
         return consultationMapper.toResponse(consultationService.findById(id));
+    }
+
+    /**
+     * PDF de la Fiche 1 (section 5.2), avec QR code encodant l'UUID de la consultation.
+     */
+    @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> telechargerPdf(@PathVariable UUID id) {
+        byte[] pdf = consultationService.genererPdf(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                        .filename("fiche-consultation-" + id + ".pdf").build().toString())
+                .body(pdf);
     }
 
     @PostMapping

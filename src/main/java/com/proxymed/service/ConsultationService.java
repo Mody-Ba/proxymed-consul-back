@@ -35,4 +35,10 @@ public interface ConsultationService {
     ConsultationModel valider(UUID id);
 
     ConsultationModel signer(UUID id);
+
+    /**
+     * PDF de la Fiche 1 (section 5.2), genere a la volee a partir de l'etat courant de la fiche,
+     * quel que soit son statut.
+     */
+    byte[] genererPdf(UUID id);
 }

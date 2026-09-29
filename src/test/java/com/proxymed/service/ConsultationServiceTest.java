@@ -66,6 +66,8 @@ class ConsultationServiceTest {
     private FacteurDeRisqueService facteurDeRisqueService;
     @Mock
     private SituationSocialeService situationSocialeService;
+    @Mock
+    private PdfGenerationService pdfGenerationService;
 
     private ConsultationService consultationService;
 
@@ -88,7 +90,7 @@ class ConsultationServiceTest {
 
         consultationService = new ConsultationServiceImpl(
                 consultationRepository, patientService, medecinService, facteurDeRisqueService, situationSocialeService,
-                consultationDbMapper);
+                consultationDbMapper, pdfGenerationService);
 
         medecinSenior = Medecin.builder().id(1L).nom("Diop").prenom("Awa").numeroOrdre("S-1").role(RoleMedecin.SENIOR).build();
         medecinJunior = Medecin.builder().id(2L).nom("Fall").prenom("Omar").numeroOrdre("J-1").role(RoleMedecin.JUNIOR).build();

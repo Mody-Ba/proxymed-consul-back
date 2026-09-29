@@ -46,6 +46,7 @@ public class ConsultationServiceImpl implements ConsultationService {
     private final FacteurDeRisqueService facteurDeRisqueService;
     private final SituationSocialeService situationSocialeService;
     private final com.proxymed.service.mappers.ConsultationMapper consultationMapper;
+    private final PdfGenerationService pdfGenerationService;
 
     @Override
     public ConsultationModel findById(UUID id) {
@@ -188,6 +189,12 @@ public class ConsultationServiceImpl implements ConsultationService {
                 .build();
         consultationMapper.applyScalarFieldsToEntity(entity, misAJour);
         return consultationMapper.toModel(consultationRepository.save(entity));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] genererPdf(UUID id) {
+        return pdfGenerationService.genererFicheConsultation(findById(id));
     }
 
     /**
