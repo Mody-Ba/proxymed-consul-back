@@ -258,6 +258,27 @@ class ConsultationIntegrationTest {
     }
 
     @Test
+    void creerBrouillon_prendEnCompteOrigineEtMotifDeLaDemande() throws Exception {
+        String reponse = mockMvc.perform(post("/api/consultations")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "patientId", patient.getId(),
+                                "medecinSeniorId", medecinSenior.getId(),
+                                "origineDemande", "SAMU",
+                                "motifPrincipalConsultation", "Chute a domicile"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.origineDemande", is("SAMU")))
+                .andExpect(jsonPath("$.motifPrincipalConsultation", is("Chute a domicile")))
+                .andReturn().getResponse().getContentAsString();
+        String consultationId = objectMapper.readTree(reponse).get("id").asText();
+
+        mockMvc.perform(get("/api/consultations/" + consultationId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.origineDemande", is("SAMU")))
+                .andExpect(jsonPath("$.motifPrincipalConsultation", is("Chute a domicile")));
+    }
+
+    @Test
     void creerBrouillon_rejette_siMedecinNestPasSenior() throws Exception {
         mockMvc.perform(post("/api/consultations")
                         .contentType("application/json")

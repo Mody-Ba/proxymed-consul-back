@@ -14,4 +14,10 @@ public interface PatientService {
     PatientModel create(PatientModel model);
 
     PatientModel update(UUID id, PatientModel model);
+
+    /**
+     * Renseigne l'age (derive de dateNaissance) sur un PatientModel produit hors de ce service,
+     * par exemple imbrique dans une consultation. Point unique de calcul de l'age.
+     */
+    PatientModel completerAge(PatientModel model);
 }
