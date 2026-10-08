@@ -51,6 +51,9 @@ public class ConsultationMapper {
                 .dateConsultation(model.dateConsultation())
                 .heureConsultation(model.heureConsultation())
                 .saisiePar(model.saisiePar())
+                .origineDemande(model.origineDemande())
+                .origineDemandeAutrePrecision(model.origineDemandeAutrePrecision())
+                .motifPrincipalConsultation(model.motifPrincipalConsultation())
                 .build();
     }
 

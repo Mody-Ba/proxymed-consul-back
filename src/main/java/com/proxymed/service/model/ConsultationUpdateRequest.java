@@ -17,6 +17,12 @@ import java.util.List;
  * Mise a jour partielle de la fiche (une ou plusieurs sections 2 a 8 a la fois).
  * Un champ absent/null n'est pas modifie ; pour vider une liste (ex. plus aucun facteur
  * de risque), il faut envoyer une liste vide explicite plutot que null.
+ * <p>
+ * Les sous-ressources de la fiche ne passent PAS par cette requete mais par leurs endpoints
+ * dedies : examen par appareil ({@code PUT /api/consultations/{id}/examen-par-appareil}),
+ * constantes vitales ({@code /api/consultations/{id}/constantes}) et maladies
+ * chroniques ({@code /api/consultations/{id}/antecedents-maladies}). Tout champ absent de ce
+ * record (ex. un objet "examenParAppareil" imbrique) est rejete en 400 "Champ inconnu".
  */
 @Builder(toBuilder = true)
 public record ConsultationUpdateRequest(

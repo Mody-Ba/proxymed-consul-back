@@ -123,4 +123,21 @@ class PatientServiceTest {
         assertThat(resultat.nomComplet()).isEqualTo("Nouveau Nom");
         assertThat(resultat.age()).isEqualTo(25);
     }
+
+    @Test
+    void completerAge_calculeLAgeDUnModeleProduitHorsDuService() {
+        PatientModel model = PatientModel.builder().id(UUID.randomUUID())
+                .dateNaissance(LocalDate.now().minusYears(72)).build();
+
+        PatientModel resultat = patientService.completerAge(model);
+
+        assertThat(resultat.age()).isEqualTo(72);
+        assertThat(resultat.id()).isEqualTo(model.id());
+    }
+
+    @Test
+    void completerAge_laisseLAgeNull_siDateNaissanceAbsente() {
+        assertThat(patientService.completerAge(PatientModel.builder().build()).age()).isNull();
+        assertThat(patientService.completerAge(null)).isNull();
+    }
 }

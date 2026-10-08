@@ -17,3 +17,6 @@ databaseChangeLog:
   - include:
       file: db/changelogs/006-create-consultation-join-tables.sql
       relativeToChangelogFile: false
+  - include:
+      file: db/changelogs/007-insert-donnees-initiales.sql
+      relativeToChangelogFile: false

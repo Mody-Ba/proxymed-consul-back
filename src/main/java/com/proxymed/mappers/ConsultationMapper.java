@@ -42,6 +42,9 @@ public class ConsultationMapper {
                 .dateConsultation(req.dateConsultation())
                 .heureConsultation(req.heureConsultation())
                 .saisiePar(req.saisiePar())
+                .origineDemande(req.origineDemande())
+                .origineDemandeAutrePrecision(req.origineDemandeAutrePrecision())
+                .motifPrincipalConsultation(req.motifPrincipalConsultation())
                 .build();
     }
 

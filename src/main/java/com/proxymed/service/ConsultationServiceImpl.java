@@ -14,6 +14,7 @@ import com.proxymed.service.model.FacteurDeRisqueModel;
 import com.proxymed.service.model.MedecinModel;
 import com.proxymed.service.model.SituationSocialeModel;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,10 +47,11 @@ public class ConsultationServiceImpl implements ConsultationService {
     private final FacteurDeRisqueService facteurDeRisqueService;
     private final SituationSocialeService situationSocialeService;
     private final com.proxymed.service.mappers.ConsultationMapper consultationMapper;
+    private final PdfGenerationService pdfGenerationService;
 
     @Override
     public ConsultationModel findById(UUID id) {
-        return consultationMapper.toModel(getEntityById(id));
+        return toModel(getEntityById(id));
     }
 
     @Override
@@ -71,13 +73,13 @@ public class ConsultationServiceImpl implements ConsultationService {
         return consultationRepository.findAll(ConsultationSpecifications.filtrer(
                         nomPatient, numeroDossierProxymed, numeroDmi, medecinSeniorId,
                         medecinJuniorAffecteId, statut, decisionEligibilite, structureId))
-                .stream().map(consultationMapper::toModel).toList();
+                .stream().map(this::toModel).toList();
     }
 
     @Override
     public List<ConsultationModel> fichesEnAttenteValidationDass() {
         return consultationRepository.findAll(ConsultationSpecifications.enAttenteValidationDass())
-                .stream().map(consultationMapper::toModel).toList();
+                .stream().map(this::toModel).toList();
     }
 
     @Override
@@ -92,14 +94,15 @@ public class ConsultationServiceImpl implements ConsultationService {
                 .dateConsultation(intention.dateConsultation() != null ? intention.dateConsultation() : LocalDate.now())
                 .heureConsultation(intention.heureConsultation() != null ? intention.heureConsultation() : LocalTime.now())
                 .build();
+        avecDefauts = validerReglesConditionnelles(avecDefauts);
         ConsultationInitiale entity = consultationMapper.toNewEntity(avecDefauts);
-        return consultationMapper.toModel(consultationRepository.save(entity));
+        return toModel(consultationRepository.save(entity));
     }
 
     @Override
     public ConsultationModel mettreAJour(UUID id, ConsultationModel intention) {
         ConsultationInitiale entity = getEntityById(id);
-        ConsultationModel courant = consultationMapper.toModel(entity);
+        ConsultationModel courant = toModel(entity);
         verifierModifiable(courant);
 
         ConsultationModel fusionne = fusionnerChampsScalaires(courant, intention);
@@ -155,25 +158,25 @@ public class ConsultationServiceImpl implements ConsultationService {
         }
 
         consultationMapper.applyScalarFieldsToEntity(entity, fusionne);
-        return consultationMapper.toModel(consultationRepository.save(entity));
+        return toModel(consultationRepository.save(entity));
     }
 
     @Override
     public ConsultationModel valider(UUID id) {
         ConsultationInitiale entity = getEntityById(id);
-        ConsultationModel model = consultationMapper.toModel(entity);
+        ConsultationModel model = toModel(entity);
         if (model.statut() != StatutConsultation.BROUILLON) {
             throw new ConflitEtatException("Seule une fiche en BROUILLON peut etre validee (statut actuel : " + model.statut() + ")");
         }
         ConsultationModel misAJour = model.toBuilder().statut(StatutConsultation.VALIDEE).build();
         consultationMapper.applyScalarFieldsToEntity(entity, misAJour);
-        return consultationMapper.toModel(consultationRepository.save(entity));
+        return toModel(consultationRepository.save(entity));
     }
 
     @Override
     public ConsultationModel signer(UUID id) {
         ConsultationInitiale entity = getEntityById(id);
-        ConsultationModel model = consultationMapper.toModel(entity);
+        ConsultationModel model = toModel(entity);
         if (model.statut() != StatutConsultation.VALIDEE) {
             throw new ConflitEtatException("Seule une fiche VALIDEE peut etre signee (statut actuel : " + model.statut() + ")");
         }
@@ -187,16 +190,25 @@ public class ConsultationServiceImpl implements ConsultationService {
                 .statut(StatutConsultation.SIGNEE)
                 .build();
         consultationMapper.applyScalarFieldsToEntity(entity, misAJour);
-        return consultationMapper.toModel(consultationRepository.save(entity));
+        return toModel(consultationRepository.save(entity));
     }
 
-    /**
-     * Seul point d'acces a l'entite JPA dans ce service : prive, jamais expose aux
-     * controllers ni aux autres services.
-     */
+    @Override
+    @Transactional(readOnly = true)
+    public Resource genererPdf(UUID id) {
+        return pdfGenerationService.genererFicheConsultation(findById(id));
+    }
+
+
     private ConsultationInitiale getEntityById(UUID id) {
         return consultationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Consultation introuvable : " + id));
+    }
+
+
+    private ConsultationModel toModel(ConsultationInitiale entity) {
+        ConsultationModel model = consultationMapper.toModel(entity);
+        return model.toBuilder().patient(patientService.completerAge(model.patient())).build();
     }
 
     private void verifierModifiable(ConsultationModel model) {

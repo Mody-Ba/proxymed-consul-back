@@ -66,6 +66,8 @@ class ConsultationServiceTest {
     private FacteurDeRisqueService facteurDeRisqueService;
     @Mock
     private SituationSocialeService situationSocialeService;
+    @Mock
+    private PdfGenerationService pdfGenerationService;
 
     private ConsultationService consultationService;
 
@@ -88,13 +90,27 @@ class ConsultationServiceTest {
 
         consultationService = new ConsultationServiceImpl(
                 consultationRepository, patientService, medecinService, facteurDeRisqueService, situationSocialeService,
-                consultationDbMapper);
+                consultationDbMapper, pdfGenerationService);
 
         medecinSenior = Medecin.builder().id(1L).nom("Diop").prenom("Awa").numeroOrdre("S-1").role(RoleMedecin.SENIOR).build();
         medecinJunior = Medecin.builder().id(2L).nom("Fall").prenom("Omar").numeroOrdre("J-1").role(RoleMedecin.JUNIOR).build();
         patient = Patient.builder().id(UUID.randomUUID()).nomComplet("Test Patient").dateNaissance(LocalDate.now().minusYears(80)).build();
 
         lenient().when(consultationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(patientService.completerAge(any())).thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    @Test
+    void findById_renseigneLAgeDuPatientViaPatientService() {
+        ConsultationInitiale consultation = consultationBrouillon();
+        when(consultationRepository.findById(consultation.getId())).thenReturn(java.util.Optional.of(consultation));
+        when(patientService.completerAge(any())).thenAnswer(inv ->
+                ((PatientModel) inv.getArgument(0)).toBuilder().age(80).build());
+
+        ConsultationModel resultat = consultationService.findById(consultation.getId());
+
+        assertThat(resultat.patient().id()).isEqualTo(patient.getId());
+        assertThat(resultat.patient().age()).isEqualTo(80);
     }
 
     @Test
@@ -128,6 +144,41 @@ class ConsultationServiceTest {
 
         assertThat(resultat.statut()).isEqualTo(StatutConsultation.BROUILLON);
         assertThat(resultat.dateConsultation()).isEqualTo(LocalDate.now());
+    }
+
+    @Test
+    void creerBrouillon_conserveOrigineEtMotifDeLaDemande() {
+        when(medecinService.findById(medecinSenior.getId())).thenReturn(
+                MedecinModel.builder().id(medecinSenior.getId()).role(RoleMedecin.SENIOR).build());
+        when(patientRepository.getReferenceById(patient.getId())).thenReturn(patient);
+        when(medecinRepository.getReferenceById(medecinSenior.getId())).thenReturn(medecinSenior);
+
+        ConsultationModel intention = ConsultationModel.builder()
+                .patient(PatientModel.builder().id(patient.getId()).build())
+                .medecinSenior(MedecinModel.builder().id(medecinSenior.getId()).build())
+                .origineDemande(OrigineDemande.SAMU)
+                .motifPrincipalConsultation("Chute a domicile")
+                .build();
+
+        ConsultationModel resultat = consultationService.creerBrouillon(intention);
+
+        assertThat(resultat.origineDemande()).isEqualTo(OrigineDemande.SAMU);
+        assertThat(resultat.motifPrincipalConsultation()).isEqualTo("Chute a domicile");
+    }
+
+    @Test
+    void creerBrouillon_rejette_siOrigineAutreSansPrecision() {
+        when(medecinService.findById(medecinSenior.getId())).thenReturn(
+                MedecinModel.builder().id(medecinSenior.getId()).role(RoleMedecin.SENIOR).build());
+
+        ConsultationModel intention = ConsultationModel.builder()
+                .patient(PatientModel.builder().id(patient.getId()).build())
+                .medecinSenior(MedecinModel.builder().id(medecinSenior.getId()).build())
+                .origineDemande(OrigineDemande.AUTRE)
+                .build();
+
+        assertThatThrownBy(() -> consultationService.creerBrouillon(intention))
+                .isInstanceOf(RegleGestionException.class);
     }
 
     @Test

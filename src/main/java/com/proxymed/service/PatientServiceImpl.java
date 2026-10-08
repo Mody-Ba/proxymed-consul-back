@@ -46,6 +46,18 @@ public class PatientServiceImpl implements PatientService {
     }
 
     /**
+     * L'age est une regle de gestion (derivee de la date de naissance), jamais persistee :
+     * calculee ici plutot que dans l'entite ou les mappers.
+     */
+    @Override
+    public PatientModel completerAge(PatientModel model) {
+        if (model == null) {
+            return null;
+        }
+        return model.toBuilder().age(calculerAge(model.dateNaissance())).build();
+    }
+
+    /**
      * Seul point d'acces a l'entite JPA dans ce service : prive, jamais expose aux
      * controllers ni aux autres services.
      */
@@ -54,13 +66,8 @@ public class PatientServiceImpl implements PatientService {
                 .orElseThrow(() -> new ResourceNotFoundException("Patient introuvable : " + id));
     }
 
-    /**
-     * L'age est une regle de gestion (derivee de la date de naissance), jamais persistee :
-     * calculee ici plutot que dans l'entite ou les mappers.
-     */
     private PatientModel toModelAvecAge(Patient entity) {
-        PatientModel model = patientMapper.toModel(entity);
-        return model.toBuilder().age(calculerAge(model.dateNaissance())).build();
+        return completerAge(patientMapper.toModel(entity));
     }
 
     private Integer calculerAge(LocalDate dateNaissance) {

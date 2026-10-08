@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -252,9 +253,48 @@ class ConsultationIntegrationTest {
     }
 
     @Test
+    void mettreAJour_rejette_examenParAppareilImbrique() throws Exception {
+        String consultationId = creerBrouillon();
+
+        // L'examen par appareil se gere via son endpoint dedie : un objet imbrique dans le PUT
+        // de la fiche doit etre rejete, et non ignore silencieusement avec un 200.
+        mockMvc.perform(put("/api/consultations/" + consultationId)
+                        .contentType("application/json")
+                        .content("""
+                                {"motifPrincipalConsultation":"Chute", "examenParAppareil":{"etatGeneral":"altere"}}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Champ inconnu dans la requete : examenParAppareil")));
+
+        mockMvc.perform(get("/api/consultations/" + consultationId + "/examen-par-appareil"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void findById_renvoie404_siConsultationInconnue() throws Exception {
         mockMvc.perform(get("/api/consultations/" + UUID.randomUUID()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void creerBrouillon_prendEnCompteOrigineEtMotifDeLaDemande() throws Exception {
+        String reponse = mockMvc.perform(post("/api/consultations")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "patientId", patient.getId(),
+                                "medecinSeniorId", medecinSenior.getId(),
+                                "origineDemande", "SAMU",
+                                "motifPrincipalConsultation", "Chute a domicile"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.origineDemande", is("SAMU")))
+                .andExpect(jsonPath("$.motifPrincipalConsultation", is("Chute a domicile")))
+                .andReturn().getResponse().getContentAsString();
+        String consultationId = objectMapper.readTree(reponse).get("id").asText();
+
+        mockMvc.perform(get("/api/consultations/" + consultationId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.origineDemande", is("SAMU")))
+                .andExpect(jsonPath("$.motifPrincipalConsultation", is("Chute a domicile")));
     }
 
     @Test
@@ -283,6 +323,20 @@ class ConsultationIntegrationTest {
                                 "patientId", UUID.randomUUID(),
                                 "medecinSeniorId", medecinSenior.getId()))))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void telechargerPdf_renvoieUnFichierPdfEnPieceJointe() throws Exception {
+        String consultationId = creerBrouillon();
+
+        byte[] pdf = mockMvc.perform(get("/api/consultations/" + consultationId + "/pdf"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"))
+                .andExpect(header().string("Content-Disposition",
+                        "attachment; filename=\"fiche-consultation-" + consultationId + ".pdf\""))
+                .andReturn().getResponse().getContentAsByteArray();
+
+        assertThat(new String(pdf, 0, 5)).isEqualTo("%PDF-");
     }
 
     private String creerBrouillon() throws Exception {
