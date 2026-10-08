@@ -14,6 +14,7 @@ import com.proxymed.service.model.FacteurDeRisqueModel;
 import com.proxymed.service.model.MedecinModel;
 import com.proxymed.service.model.SituationSocialeModel;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -194,23 +195,17 @@ public class ConsultationServiceImpl implements ConsultationService {
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] genererPdf(UUID id) {
+    public Resource genererPdf(UUID id) {
         return pdfGenerationService.genererFicheConsultation(findById(id));
     }
 
-    /**
-     * Seul point d'acces a l'entite JPA dans ce service : prive, jamais expose aux
-     * controllers ni aux autres services.
-     */
+
     private ConsultationInitiale getEntityById(UUID id) {
         return consultationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Consultation introuvable : " + id));
     }
 
-    /**
-     * Conversion Entity -> Model de ce service : le mapper DB ne connait pas les regles de
-     * gestion du patient (age derive), on les delegue donc a PatientService.
-     */
+
     private ConsultationModel toModel(ConsultationInitiale entity) {
         ConsultationModel model = consultationMapper.toModel(entity);
         return model.toBuilder().patient(patientService.completerAge(model.patient())).build();

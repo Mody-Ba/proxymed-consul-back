@@ -3,9 +3,11 @@ package com.proxymed.exception;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
 import java.util.List;
 
@@ -43,5 +45,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Validation echouee", ex.getMessage()));
+    }
+
+    /**
+     * Corps JSON illisible. Cas le plus courant : un champ inconnu du DTO (rejete grace a
+     * spring.jackson.deserialization.fail-on-unknown-properties=true), par exemple un
+     * "examenParAppareil" imbrique envoye a PUT /api/consultations/{id} au lieu de son
+     * endpoint dedie. On nomme le champ fautif pour que le client sache quoi corriger.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException ex) {
+        String message = ex.getMostSpecificCause() instanceof UnrecognizedPropertyException upe
+                ? "Champ inconnu dans la requete : " + upe.getPropertyName()
+                : "Le corps de la requete est illisible ou mal forme";
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Requete invalide", message));
     }
 }

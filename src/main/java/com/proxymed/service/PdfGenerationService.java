@@ -10,30 +10,22 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.proxymed.service.model.ConsultationModel;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.ITemplateEngine;
 import org.thymeleaf.context.Context;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Generation du PDF de la Fiche 1 (section 5.2 du cahier des charges) :
- * remplissage du template Thymeleaf "fiche-consultation" a partir du ConsultationModel complet,
- * generation du QR code (ZXing) puis conversion HTML -> PDF (openhtmltopdf).
- *
- * Le QR code encode uniquement l'UUID de la consultation (pas d'URL) : il est insere dans
- * le template sous forme d'image PNG en data URI base64.
- *
- * Ne connait que le Model : l'appelant (ConsultationService) est responsable du chargement
- * de la fiche et des regles metier.
- */
+
 @Component
 public class PdfGenerationService {
 
@@ -43,17 +35,18 @@ public class PdfGenerationService {
     private final ITemplateEngine templateEngine;
     private final ZoneId fuseauHoraire;
 
-    /**
-     * @param fuseauHoraire fuseau d'affichage des horodatages de signature (stockes en Instant/UTC),
-     *                      independant du fuseau du serveur.
-     */
+
     public PdfGenerationService(ITemplateEngine templateEngine,
                                 @Value("${proxymed.pdf.fuseau-horaire:Africa/Dakar}") ZoneId fuseauHoraire) {
         this.templateEngine = templateEngine;
         this.fuseauHoraire = fuseauHoraire;
     }
 
-    public byte[] genererFicheConsultation(ConsultationModel consultation) {
+    /**
+     * Le PDF est ecrit dans un fichier temporaire, renvoye sous forme de Resource : il est
+     * supprime des que son contenu a ete lu (cf. {@link FichePdfTemporaire}).
+     */
+    public Resource genererFicheConsultation(ConsultationModel consultation) {
         String html = remplirTemplate(consultation);
         return convertirEnPdf(html);
     }
@@ -81,16 +74,38 @@ public class PdfGenerationService {
         }
     }
 
-    private byte[] convertirEnPdf(String html) {
-        try (ByteArrayOutputStream pdf = new ByteArrayOutputStream()) {
-            PdfRendererBuilder builder = new PdfRendererBuilder();
-            builder.useFastMode();
-            builder.withHtmlContent(html, null);
-            builder.toStream(pdf);
-            builder.run();
-            return pdf.toByteArray();
+    private Resource convertirEnPdf(String html) {
+        try {
+            var file = File.createTempFile("fiche-consultation-", ".pdf");
+            try (var pdf = new FileOutputStream(file)) {
+                PdfRendererBuilder builder = new PdfRendererBuilder();
+                builder.useFastMode();
+                builder.withHtmlContent(html, null);
+                builder.toStream(pdf);
+                builder.run();
+            } catch (IOException | RuntimeException e) {
+                file.delete();
+                throw e;
+            }
+            return new FichePdfTemporaire(file);
         } catch (IOException e) {
             throw new UncheckedIOException("Echec de la conversion HTML -> PDF de la fiche", e);
+        }
+    }
+
+    /**
+     * Fichier PDF a usage unique : supprime du disque a la fermeture du flux de lecture,
+     * pour ne pas accumuler un fichier temporaire par telechargement.
+     */
+    private static final class FichePdfTemporaire extends FileSystemResource {
+
+        private FichePdfTemporaire(File file) {
+            super(file);
+        }
+
+        @Override
+        public InputStream getInputStream() throws IOException {
+            return Files.newInputStream(getFile().toPath(), StandardOpenOption.DELETE_ON_CLOSE);
         }
     }
 }

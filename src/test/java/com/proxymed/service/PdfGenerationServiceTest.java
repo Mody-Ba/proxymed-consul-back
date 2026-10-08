@@ -31,11 +31,13 @@ import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.Resource;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import java.awt.image.BufferedImage;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -74,7 +76,7 @@ class PdfGenerationServiceTest {
     void genererFicheConsultation_produitUnPdfAvecLesHuitSectionsEtLesDonnees() throws Exception {
         ConsultationModel consultation = ficheComplete();
 
-        byte[] pdf = pdfGenerationService.genererFicheConsultation(consultation);
+        byte[] pdf = lire(pdfGenerationService.genererFicheConsultation(consultation));
         Files.write(Path.of("target", "fiche-consultation-exemple.pdf"), pdf);
 
         assertThat(new String(pdf, 0, 5)).isEqualTo("%PDF-");
@@ -101,7 +103,7 @@ class PdfGenerationServiceTest {
     void genererFicheConsultation_qrCodeEncodeUniquementLUuid() throws Exception {
         ConsultationModel consultation = ficheComplete();
 
-        byte[] pdf = pdfGenerationService.genererFicheConsultation(consultation);
+        byte[] pdf = lire(pdfGenerationService.genererFicheConsultation(consultation));
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
             BufferedImage page = new PDFRenderer(document).renderImageWithDPI(0, 200);
@@ -131,11 +133,30 @@ class PdfGenerationServiceTest {
                 .constantesVitales(List.of())
                 .build();
 
-        byte[] pdf = pdfGenerationService.genererFicheConsultation(brouillon);
+        byte[] pdf = lire(pdfGenerationService.genererFicheConsultation(brouillon));
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
             String texte = new PDFTextStripper().getText(document);
             assertThat(texte).contains("Awa Ndiaye", "BROUILLON", "Aucune constante vitale saisie", "Non signé");
+        }
+    }
+
+    @Test
+    void genererFicheConsultation_ecritUnFichierPdfTemporaireSupprimeApresLecture() throws Exception {
+        Resource pdf = pdfGenerationService.genererFicheConsultation(ficheComplete());
+
+        assertThat(pdf.getFile()).isFile().hasExtension("pdf");
+        assertThat(pdf.contentLength()).isPositive();
+
+        byte[] contenu = lire(pdf);
+
+        assertThat(new String(contenu, 0, 5)).isEqualTo("%PDF-");
+        assertThat(pdf.getFile()).doesNotExist();
+    }
+
+    private byte[] lire(Resource pdf) throws Exception {
+        try (InputStream flux = pdf.getInputStream()) {
+            return flux.readAllBytes();
         }
     }
 
