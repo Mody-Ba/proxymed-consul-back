@@ -15,6 +15,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -97,6 +99,48 @@ class FicheSigneeServiceTest {
         assertThat(resultat.consultationId()).isEqualTo(consultation.getId());
         assertThat(resultat.nomFichier()).isEqualTo("fiche.pdf");
         assertThat(resultat.dateImport()).isEqualTo(enregistree.getDateImport());
+    }
+
+    @Test
+    void telecharger_rejette_siConsultationIntrouvable() {
+        UUID consultationId = UUID.randomUUID();
+        when(consultationService.findById(consultationId))
+                .thenThrow(new ResourceNotFoundException("Consultation introuvable : " + consultationId));
+
+        assertThatThrownBy(() -> ficheSigneeService.telecharger(consultationId))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(ficheSigneeRepository, never()).findFirstByConsultation_IdOrderByDateImportDesc(any());
+    }
+
+    @Test
+    void telecharger_rejette_siAucuneFicheImportee() {
+        UUID consultationId = UUID.randomUUID();
+        when(ficheSigneeRepository.findFirstByConsultation_IdOrderByDateImportDesc(consultationId))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> ficheSigneeService.telecharger(consultationId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void telecharger_renvoieLaFicheLaPlusRecente() {
+        ConsultationInitiale consultation = ConsultationInitiale.builder().id(UUID.randomUUID()).build();
+        FicheSignee plusRecente = FicheSignee.builder()
+                .id(UUID.randomUUID()).consultation(consultation)
+                .nomFichier("fiche-v2.pdf").typeContenu("application/pdf")
+                .tailleOctets(PDF.length).dateImport(Instant.parse("2026-10-09T12:00:00Z")).contenu(PDF)
+                .build();
+        when(ficheSigneeRepository.findFirstByConsultation_IdOrderByDateImportDesc(consultation.getId()))
+                .thenReturn(Optional.of(plusRecente));
+
+        FicheSigneeModel resultat = ficheSigneeService.telecharger(consultation.getId());
+
+        verify(consultationService).findById(consultation.getId());
+        assertThat(resultat.id()).isEqualTo(plusRecente.getId());
+        assertThat(resultat.consultationId()).isEqualTo(consultation.getId());
+        assertThat(resultat.nomFichier()).isEqualTo("fiche-v2.pdf");
+        assertThat(resultat.dateImport()).isEqualTo(plusRecente.getDateImport());
+        assertThat(resultat.contenu()).isEqualTo(PDF);
     }
 
     private FicheSigneeModel fichier(String typeContenu, byte[] contenu) {

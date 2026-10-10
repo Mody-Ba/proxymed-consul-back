@@ -23,13 +23,17 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -101,5 +105,42 @@ class FicheSigneeIntegrationTest {
                                 "pas un pdf".getBytes(StandardCharsets.US_ASCII))))
                 .andExpect(status().isBadRequest());
         assertThat(ficheSigneeRepository.count()).isZero();
+    }
+
+    @Test
+    void telecharger_renvoieLePdfLePlusRecent_avecLesEnTetesDeTelechargement() throws Exception {
+        byte[] ancien = "%PDF-1.7\nancienne fiche".getBytes(StandardCharsets.US_ASCII);
+        byte[] recent = "%PDF-1.7\nfiche la plus recente".getBytes(StandardCharsets.US_ASCII);
+        enregistrerFiche("fiche-recente.pdf", Instant.parse("2026-10-09T12:00:00Z"), recent);
+        enregistrerFiche("fiche-ancienne.pdf", Instant.parse("2026-10-08T12:00:00Z"), ancien);
+
+        byte[] corps = mockMvc.perform(get("/api/consultations/" + consultationId + "/fiche-signee"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/pdf"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"fiche-recente.pdf\""))
+                .andReturn().getResponse().getContentAsByteArray();
+
+        assertThat(new String(corps, StandardCharsets.US_ASCII)).startsWith("%PDF-");
+        assertThat(corps).isEqualTo(recent);
+    }
+
+    @Test
+    void telecharger_renvoie404_siConsultationInconnue() throws Exception {
+        mockMvc.perform(get("/api/consultations/" + UUID.randomUUID() + "/fiche-signee"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void telecharger_renvoie404_siAucuneFicheImportee() throws Exception {
+        mockMvc.perform(get("/api/consultations/" + consultationId + "/fiche-signee"))
+                .andExpect(status().isNotFound());
+    }
+
+    private void enregistrerFiche(String nomFichier, Instant dateImport, byte[] contenu) {
+        ficheSigneeRepository.save(FicheSignee.builder()
+                .consultation(consultationRepository.getReferenceById(consultationId))
+                .nomFichier(nomFichier).typeContenu("application/pdf")
+                .tailleOctets(contenu.length).dateImport(dateImport).contenu(contenu)
+                .build());
     }
 }

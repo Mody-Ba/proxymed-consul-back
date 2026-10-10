@@ -2,6 +2,7 @@ package com.proxymed.service;
 
 import com.proxymed.entity.FicheSignee;
 import com.proxymed.exception.RegleGestionException;
+import com.proxymed.exception.ResourceNotFoundException;
 import com.proxymed.repository.FicheSigneeRepository;
 import com.proxymed.service.mappers.FicheSigneeMapper;
 import com.proxymed.service.model.FicheSigneeModel;
@@ -41,6 +42,16 @@ public class FicheSigneeServiceImpl implements FicheSigneeService {
         FicheSigneeModel aEnregistrer = model.toBuilder().dateImport(Instant.now()).build();
         FicheSignee entity = ficheSigneeRepository.save(ficheSigneeMapper.toEntity(aEnregistrer, consultationId));
         return ficheSigneeMapper.toModel(entity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FicheSigneeModel telecharger(UUID consultationId) {
+        consultationService.findById(consultationId);
+        return ficheSigneeRepository.findFirstByConsultation_IdOrderByDateImportDesc(consultationId)
+                .map(ficheSigneeMapper::toModel)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Aucune fiche signee importee pour la consultation : " + consultationId));
     }
 
     /**
