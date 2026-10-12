@@ -20,3 +20,6 @@ databaseChangeLog:
   - include:
       file: db/changelogs/007-insert-donnees-initiales.sql
       relativeToChangelogFile: false
+  - include:
+      file: db/changelogs/008-create-fiche-signee-table.sql
+      relativeToChangelogFile: false
