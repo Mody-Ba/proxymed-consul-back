@@ -4,6 +4,7 @@ import com.proxymed.mappers.MaladieChroniqueMapper;
 import com.proxymed.service.model.MaladieChroniqueResponse;
 import com.proxymed.service.MaladieChroniqueService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +19,7 @@ public class MaladieChroniqueController {
     private final MaladieChroniqueService maladieChroniqueService;
     private final MaladieChroniqueMapper maladieChroniqueMapper;
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping
     public List<MaladieChroniqueResponse> findAll() {
         return maladieChroniqueMapper.toResponseList(maladieChroniqueService.findActives());

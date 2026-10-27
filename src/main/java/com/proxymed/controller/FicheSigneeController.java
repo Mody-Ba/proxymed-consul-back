@@ -15,6 +15,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,6 +35,7 @@ public class FicheSigneeController {
     private final FicheSigneeService ficheSigneeService;
     private final FicheSigneeMapper ficheSigneeMapper;
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public FicheSigneeResponse importer(@PathVariable UUID consultationId,
@@ -42,6 +44,7 @@ public class FicheSigneeController {
                 ficheSigneeService.importer(consultationId, ficheSigneeMapper.toModel(fichier)));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @ApiResponse(responseCode = "200", description = "Fiche signee importee la plus recente, au format PDF",
             content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE,
                     schema = @Schema(type = "string", format = "binary")))

@@ -11,11 +11,13 @@ import com.proxymed.enums.StatutConsultation;
 import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.repository.MedecinRepository;
 import com.proxymed.repository.PatientRepository;
+import com.proxymed.support.BadgeMedecinParDefaut;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(BadgeMedecinParDefaut.class)
 @Transactional
 class ConstanteVitaleIntegrationTest {
 

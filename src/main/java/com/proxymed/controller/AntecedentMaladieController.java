@@ -7,6 +7,7 @@ import com.proxymed.service.AntecedentMaladieService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,11 +29,13 @@ public class AntecedentMaladieController {
     private final AntecedentMaladieService antecedentMaladieService;
     private final AntecedentMaladieMapper antecedentMaladieMapper;
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping
     public List<AntecedentMaladieResponse> findAll(@PathVariable UUID consultationId) {
         return antecedentMaladieMapper.toResponseList(antecedentMaladieService.findByConsultation(consultationId));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AntecedentMaladieResponse ajouter(@PathVariable UUID consultationId,
@@ -41,6 +44,7 @@ public class AntecedentMaladieController {
                 antecedentMaladieService.ajouter(consultationId, antecedentMaladieMapper.toModel(request)));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PutMapping("/{antecedentId}")
     public AntecedentMaladieResponse modifier(@PathVariable UUID consultationId, @PathVariable Long antecedentId,
                                                @Valid @RequestBody AntecedentMaladieRequest request) {
@@ -48,6 +52,7 @@ public class AntecedentMaladieController {
                 antecedentMaladieService.modifier(consultationId, antecedentId, antecedentMaladieMapper.toModel(request)));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @DeleteMapping("/{antecedentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void supprimer(@PathVariable UUID consultationId, @PathVariable Long antecedentId) {
