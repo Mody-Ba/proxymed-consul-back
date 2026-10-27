@@ -26,24 +26,29 @@ public class FabriqueBadge {
 
     /** Valeur prete pour l'en-tete Authorization : badge valide une heure, portant ce role. */
     public String bearer(String role) {
-        return "Bearer " + badge(role, jwtSecret, Instant.now().plusSeconds(3600));
+        return bearer(role, UUID.randomUUID());
+    }
+
+    /** Comme bearer(role), pour un compte precis (claim "sub") : utile pour tester "ses propres" donnees. */
+    public String bearer(String role, UUID utilisateurId) {
+        return "Bearer " + badge(role, utilisateurId, jwtSecret, Instant.now().plusSeconds(3600));
     }
 
     /** Badge bien signe mais expire depuis une minute. */
     public String bearerExpire(String role) {
-        return "Bearer " + badge(role, jwtSecret, Instant.now().minusSeconds(60));
+        return "Bearer " + badge(role, UUID.randomUUID(), jwtSecret, Instant.now().minusSeconds(60));
     }
 
     /** Badge signe avec un autre secret que celui du service d'authentification. */
     public String bearerFalsifie(String role) {
-        return "Bearer " + badge(role, "un-autre-secret-que-celui-du-service-auth-0123456789",
+        return "Bearer " + badge(role, UUID.randomUUID(), "un-autre-secret-que-celui-du-service-auth-0123456789",
                 Instant.now().plusSeconds(3600));
     }
 
-    private String badge(String role, String secret, Instant expiration) {
+    private String badge(String role, UUID utilisateurId, String secret, Instant expiration) {
         return Jwts.builder()
                 .issuer(emetteur)
-                .subject(UUID.randomUUID().toString())
+                .subject(utilisateurId.toString())
                 .claim("email", role.toLowerCase() + "@proxymed.test")
                 .claim("roles", List.of(role))
                 .issuedAt(Date.from(expiration.minusSeconds(3600)))

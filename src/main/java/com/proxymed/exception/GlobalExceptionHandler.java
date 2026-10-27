@@ -9,6 +9,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
@@ -54,6 +55,12 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(HttpStatus.CONFLICT.value(), "Fiche signee deja importee", ex.getMessage()));
     }
 
+    @ExceptionHandler(DemandeDejaTraiteeException.class)
+    public ResponseEntity<ErrorResponse> handleDemandeDejaTraitee(DemandeDejaTraiteeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(HttpStatus.CONFLICT.value(), "Demande deja traitee", ex.getMessage()));
+    }
+
     @ExceptionHandler(QrCodeIntrouvableException.class)
     public ResponseEntity<ErrorResponse> handleQrCodeIntrouvable(QrCodeIntrouvableException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
@@ -65,6 +72,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Requete invalide",
                         "La partie \"" + ex.getRequestPartName() + "\" (fichier PDF) est obligatoire"));
+    }
+
+    /**
+     * Parametre d'adresse ou de requete au mauvais format : id qui n'est pas un UUID, statut
+     * inconnu, numero de page non numerique...
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Requete invalide",
+                        "Valeur invalide pour le parametre \"" + ex.getName() + "\""));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
