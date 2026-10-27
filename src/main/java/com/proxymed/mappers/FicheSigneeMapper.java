@@ -31,6 +31,9 @@ public class FicheSigneeMapper {
     public FicheSigneeResponse toResponse(FicheSigneeModel model) {
         return FicheSigneeResponse.builder()
                 .id(model.id())
+                .patientId(model.patientId())
+                .consultationId(model.consultationId())
+                .dateConsultation(model.dateConsultation())
                 .nomFichier(model.nomFichier())
                 .tailleOctets(model.tailleOctets())
                 .dateImport(model.dateImport())

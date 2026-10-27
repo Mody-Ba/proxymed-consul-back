@@ -69,7 +69,7 @@ class PdfGenerationServiceTest {
         resolver.setCharacterEncoding("UTF-8");
         SpringTemplateEngine templateEngine = new SpringTemplateEngine();
         templateEngine.setTemplateResolver(resolver);
-        pdfGenerationService = new PdfGenerationService(templateEngine, ZoneId.of("Africa/Dakar"));
+        pdfGenerationService = new PdfGenerationService(templateEngine, new GenerateurContenuQr(), ZoneId.of("Africa/Dakar"));
     }
 
     @Test
@@ -100,25 +100,26 @@ class PdfGenerationServiceTest {
     }
 
     @Test
-    void genererFicheConsultation_qrCodeEncodeUniquementLUuid() throws Exception {
+    void genererFicheConsultation_qrCodeEncodeLeTypeDeFicheLePatientEtLaConsultation() throws Exception {
         ConsultationModel consultation = ficheComplete();
 
         byte[] pdf = lire(pdfGenerationService.genererFicheConsultation(consultation));
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
             BufferedImage page = new PDFRenderer(document).renderImageWithDPI(0, 200);
-            assertThat(decoderQrCode(page)).isEqualTo(consultation.id().toString());
+            assertThat(decoderQrCode(page)).isEqualTo("{\"type\":\"FICHE_1_CONSULTATION_INITIALE\",\"patientId\":\""
+                    + consultation.patient().id() + "\",\"consultationId\":\"" + consultation.id() + "\"}");
         }
     }
 
     @Test
-    void genererQrCodeBase64_produitUnPngDecodableContenantLUuid() throws Exception {
-        UUID id = UUID.randomUUID();
+    void genererQrCodeBase64_produitUnPngDecodableContenantLeTexte() throws Exception {
+        String texte = "{\"type\":\"FICHE_1_CONSULTATION_INITIALE\",\"consultationId\":\"" + UUID.randomUUID() + "\"}";
 
-        byte[] png = Base64.getDecoder().decode(pdfGenerationService.genererQrCodeBase64(id));
+        byte[] png = Base64.getDecoder().decode(pdfGenerationService.genererQrCodeBase64(texte));
 
         BufferedImage image = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(png));
-        assertThat(decoderQrCode(image)).isEqualTo(id.toString());
+        assertThat(decoderQrCode(image)).isEqualTo(texte);
     }
 
     @Test
@@ -126,7 +127,7 @@ class PdfGenerationServiceTest {
         ConsultationModel brouillon = ConsultationModel.builder()
                 .id(UUID.randomUUID())
                 .statut(StatutConsultation.BROUILLON)
-                .patient(PatientModel.builder().nomComplet("Awa Ndiaye").build())
+                .patient(PatientModel.builder().id(UUID.randomUUID()).nomComplet("Awa Ndiaye").build())
                 .maladiesChroniques(List.of())
                 .facteursDeRisque(List.of())
                 .situationSociale(List.of())

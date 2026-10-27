@@ -1,7 +1,9 @@
 package com.proxymed.service.mappers;
 
+import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.FicheSignee;
 import com.proxymed.repository.ConsultationRepository;
+import com.proxymed.repository.FicheSigneeResume;
 import com.proxymed.service.model.FicheSigneeModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -33,14 +35,30 @@ public class FicheSigneeMapper {
     }
 
     public FicheSigneeModel toModel(FicheSignee entity) {
+        ConsultationInitiale consultation = entity.getConsultation();
         return FicheSigneeModel.builder()
                 .id(entity.getId())
-                .consultationId(entity.getConsultation().getId())
+                .consultationId(consultation.getId())
+                .patientId(consultation.getPatient() != null ? consultation.getPatient().getId() : null)
+                .dateConsultation(consultation.getDateConsultation())
                 .nomFichier(entity.getNomFichier())
                 .typeContenu(entity.getTypeContenu())
                 .tailleOctets(entity.getTailleOctets())
                 .dateImport(entity.getDateImport())
                 .contenu(entity.getContenu())
+                .build();
+    }
+
+    public FicheSigneeModel toModel(FicheSigneeResume resume) {
+        return FicheSigneeModel.builder()
+                .id(resume.getId())
+                .consultationId(resume.getConsultationId())
+                .patientId(resume.getPatientId())
+                .dateConsultation(resume.getDateConsultation())
+                .nomFichier(resume.getNomFichier())
+                .typeContenu(resume.getTypeContenu())
+                .tailleOctets(resume.getTailleOctets())
+                .dateImport(resume.getDateImport())
                 .build();
     }
 }
