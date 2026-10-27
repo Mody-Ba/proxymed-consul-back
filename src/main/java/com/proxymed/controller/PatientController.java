@@ -7,6 +7,7 @@ import com.proxymed.service.PatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,22 +28,26 @@ public class PatientController {
     private final PatientService patientService;
     private final PatientMapper patientMapper;
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping
     public List<PatientResponse> findAll() {
         return patientService.findAll().stream().map(patientMapper::toResponse).toList();
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping("/{id}")
     public PatientResponse findById(@PathVariable UUID id) {
         return patientMapper.toResponse(patientService.findById(id));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public PatientResponse create(@Valid @RequestBody PatientRequest request) {
         return patientMapper.toResponse(patientService.create(patientMapper.toModel(request)));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PutMapping("/{id}")
     public PatientResponse update(@PathVariable UUID id, @Valid @RequestBody PatientRequest request) {
         return patientMapper.toResponse(patientService.update(id, patientMapper.toModel(request)));

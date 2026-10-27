@@ -4,6 +4,7 @@ import com.proxymed.mappers.FacteurDeRisqueMapper;
 import com.proxymed.service.model.FacteurDeRisqueResponse;
 import com.proxymed.service.FacteurDeRisqueService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +19,7 @@ public class FacteurDeRisqueController {
     private final FacteurDeRisqueService facteurDeRisqueService;
     private final FacteurDeRisqueMapper facteurDeRisqueMapper;
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping
     public List<FacteurDeRisqueResponse> findAll() {
         return facteurDeRisqueMapper.toResponseList(facteurDeRisqueService.findActifs());

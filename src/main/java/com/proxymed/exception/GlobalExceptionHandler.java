@@ -2,8 +2,10 @@ package com.proxymed.exception;
 
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -19,6 +21,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse(HttpStatus.NOT_FOUND.value(), "Ressource introuvable", ex.getMessage()));
+    }
+
+    /**
+     * Refus d'un @PreAuthorize : l'exception est levee dans le controller, donc elle peut arriver
+     * ici avant AccesRefuseHandler. Meme reponse que AccesRefuseHandler. Le type JSON est force :
+     * sans cela, un refus sur un endpoint PDF (produces = application/pdf) ne pourrait pas
+     * renvoyer ce message.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccesRefuse(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorResponse(HttpStatus.FORBIDDEN.value(), "Acces refuse",
+                        "Votre role ne permet pas d'acceder a cette ressource"));
     }
 
     @ExceptionHandler(RegleGestionException.class)

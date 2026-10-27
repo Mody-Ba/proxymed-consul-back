@@ -20,6 +20,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,6 +47,7 @@ public class ConsultationController {
      * Recherche/liste du DMI (section 5.3/5.4). medecinJuniorAffecteId sert aussi
      * a lister les patients affectes a un medecin junior donne.
      */
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping
     public List<ConsultationSummaryResponse> rechercher(
             @RequestParam(required = false) String nomPatient,
@@ -65,12 +67,14 @@ public class ConsultationController {
     /**
      * Fiches validees en attente de signature du point focal DASS (section 5.4).
      */
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping("/en-attente-dass")
     public List<ConsultationSummaryResponse> enAttenteValidationDass() {
         return consultationService.fichesEnAttenteValidationDass()
                 .stream().map(consultationMapper::toSummaryResponse).toList();
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping("/{id}")
     public ConsultationResponse findById(@PathVariable UUID id) {
         return consultationMapper.toResponse(consultationService.findById(id));
@@ -80,6 +84,7 @@ public class ConsultationController {
      * PDF de la Fiche 1 (section 5.2), avec QR code encodant l'UUID de la consultation.
      */
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping("/download-pdf")
     public ResponseEntity<Resource> getPdfFile() throws IOException {
          Resource pdfFile = new ClassPathResource("sample.pdf");
@@ -88,6 +93,7 @@ public class ConsultationController {
                  .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + pdfFile.getFilename() + "\"")
                  .body(pdfFile);
     }
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @ApiResponse(responseCode = "200", description = "Fiche de consultation au format PDF",
             content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE,
                     schema = @Schema(type = "string", format = "binary")))
@@ -101,22 +107,26 @@ public class ConsultationController {
                 .body(pdf);
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ConsultationResponse creer(@Valid @RequestBody ConsultationCreateRequest request) {
         return consultationMapper.toResponse(consultationService.creerBrouillon(consultationMapper.toModel(request)));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PutMapping("/{id}")
     public ConsultationResponse mettreAJour(@PathVariable UUID id, @Valid @RequestBody ConsultationUpdateRequest request) {
         return consultationMapper.toResponse(consultationService.mettreAJour(id, consultationMapper.toModel(request)));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PostMapping("/{id}/valider")
     public ConsultationResponse valider(@PathVariable UUID id) {
         return consultationMapper.toResponse(consultationService.valider(id));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PostMapping("/{id}/signer")
     public ConsultationResponse signer(@PathVariable UUID id) {
         return consultationMapper.toResponse(consultationService.signer(id));

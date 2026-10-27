@@ -6,6 +6,7 @@ import com.proxymed.service.model.ExamenParAppareilResponse;
 import com.proxymed.service.ExamenParAppareilService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -23,11 +24,13 @@ public class ExamenParAppareilController {
     private final ExamenParAppareilService examenParAppareilService;
     private final ExamenParAppareilMapper examenParAppareilMapper;
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @GetMapping
     public ExamenParAppareilResponse findOne(@PathVariable UUID consultationId) {
         return examenParAppareilMapper.toResponse(examenParAppareilService.findByConsultation(consultationId));
     }
 
+    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PutMapping
     public ExamenParAppareilResponse creerOuMettreAJour(@PathVariable UUID consultationId,
                                                          @Valid @RequestBody ExamenParAppareilRequest request) {
