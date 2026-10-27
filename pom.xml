@@ -18,6 +18,8 @@
 		<openhtmltopdf.version>1.1.87</openhtmltopdf.version>
 		<zxing.version>3.5.4</zxing.version>
 		<jjwt.version>0.12.6</jjwt.version>
+		<!-- Meme version que celle tiree par openhtmltopdf-pdfbox -->
+		<pdfbox.version>3.0.7</pdfbox.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -68,7 +70,13 @@
 			<artifactId>openhtmltopdf-pdfbox</artifactId>
 			<version>${openhtmltopdf.version}</version>
 		</dependency>
-		<!-- QR code (UUID de la consultation) imprime sur la fiche -->
+		<!-- Rendu des pages du PDF scanne en image, pour y chercher le QR code -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>${pdfbox.version}</version>
+		</dependency>
+		<!-- QR code imprime sur la fiche (generation) et lu sur la fiche scannee (import) -->
 		<dependency>
 			<groupId>com.google.zxing</groupId>
 			<artifactId>core</artifactId>

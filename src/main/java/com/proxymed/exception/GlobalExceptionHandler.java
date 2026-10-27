@@ -9,6 +9,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
 import java.util.List;
@@ -45,6 +46,25 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleConflitEtat(ConflitEtatException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse(HttpStatus.CONFLICT.value(), "Action incompatible avec le statut de la fiche", ex.getMessage()));
+    }
+
+    @ExceptionHandler(FicheSigneeExistanteException.class)
+    public ResponseEntity<ErrorResponse> handleFicheSigneeExistante(FicheSigneeExistanteException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(HttpStatus.CONFLICT.value(), "Fiche signee deja importee", ex.getMessage()));
+    }
+
+    @ExceptionHandler(QrCodeIntrouvableException.class)
+    public ResponseEntity<ErrorResponse> handleQrCodeIntrouvable(QrCodeIntrouvableException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+                .body(new ErrorResponse(HttpStatus.UNPROCESSABLE_CONTENT.value(), "Code QR introuvable", ex.getMessage()));
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ErrorResponse> handleMissingPart(MissingServletRequestPartException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Requete invalide",
+                        "La partie \"" + ex.getRequestPartName() + "\" (fichier PDF) est obligatoire"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
