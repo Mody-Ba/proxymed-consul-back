@@ -4,7 +4,8 @@
   Rendu par PdfGenerationService (Thymeleaf -> XHTML -> openhtmltopdf) : le HTML produit doit
   rester du XHTML bien forme (pas d'entites HTML nommees type &nbsp; -> utiliser &#160;),
   et la mise en page n'utilise que ce que supporte openhtmltopdf (CSS 2.1 : tables/floats, pas de flexbox).
-  Variables : c = ConsultationModel complet, qrCode = PNG base64 du QR code (UUID de la consultation),
+  Variables : c = ConsultationModel complet, qrCode = PNG base64 du QR code (JSON : type de fiche,
+  id du patient et id de la consultation, cf. GenerateurContenuQr),
   fuseauHoraire = ZoneId d'affichage des horodatages (Instant) de signature.
 -->
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" lang="fr">
