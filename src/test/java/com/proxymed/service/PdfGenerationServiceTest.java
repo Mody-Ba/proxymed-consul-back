@@ -27,7 +27,6 @@ import com.proxymed.service.model.PatientModel;
 import com.proxymed.service.model.SituationSocialeModel;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -105,11 +104,9 @@ class PdfGenerationServiceTest {
 
         byte[] pdf = lire(pdfGenerationService.genererFicheConsultation(consultation));
 
-        try (PDDocument document = Loader.loadPDF(pdf)) {
-            BufferedImage page = new PDFRenderer(document).renderImageWithDPI(0, 200);
-            assertThat(decoderQrCode(page)).isEqualTo("{\"type\":\"FICHE_1_CONSULTATION_INITIALE\",\"patientId\":\""
-                    + consultation.patient().id() + "\",\"consultationId\":\"" + consultation.id() + "\"}");
-        }
+        // Meme lecture qu'a l'import (300 DPI, lecteur multiple, deux binariseurs).
+        assertThat(new DetecteurQrPdf().detecter(pdf)).containsExactly("{\"type\":\"FICHE_1_CONSULTATION_INITIALE\",\"patientId\":\""
+                + consultation.patient().id() + "\",\"consultationId\":\"" + consultation.id() + "\"}");
     }
 
     @Test
