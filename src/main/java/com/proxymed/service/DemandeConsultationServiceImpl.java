@@ -2,6 +2,7 @@ package com.proxymed.service;
 
 import com.proxymed.entity.DemandeConsultation;
 import com.proxymed.enums.StatutDemandeConsultation;
+import com.proxymed.exception.ConsultationNonCommencableException;
 import com.proxymed.exception.DemandeDejaTraiteeException;
 import com.proxymed.exception.RegleGestionException;
 import com.proxymed.exception.ResourceNotFoundException;
@@ -23,7 +24,8 @@ import java.util.UUID;
 /**
  * La seule entite JPA visible dans cette classe est DemandeConsultation. Une demande ne se decide
  * qu'une fois : accepter ou refuser exige le statut EN_ATTENTE (sinon 409), et la colonne version
- * fait echouer la decision perdante de deux decisions simultanees.
+ * fait echouer la decision perdante de deux decisions simultanees. Une demande ACCEPTEE n'est liee
+ * qu'une fois a une consultation initiale (meme protection par la version).
  */
 @Service
 @RequiredArgsConstructor
@@ -46,6 +48,7 @@ public class DemandeConsultationServiceImpl implements DemandeConsultationServic
                 .motifRefus(null)
                 .dateCreation(Instant.now())
                 .dateDecision(null)
+                .consultationId(null)
                 .build();
         return demandeConsultationMapper.toModel(
                 demandeConsultationRepository.save(demandeConsultationMapper.toEntity(aEnregistrer)));
@@ -100,6 +103,28 @@ public class DemandeConsultationServiceImpl implements DemandeConsultationServic
         demande.setMotifRefus(motifRefus.strip());
         demande.setDateDecision(Instant.now());
         return enregistrerDecision(demande);
+    }
+
+    @Override
+    public DemandeConsultationModel lierConsultation(UUID id, UUID consultationId) {
+        DemandeConsultation demande = getEntityById(id);
+        verifierCommencable(demande);
+        demande.setConsultationId(consultationId);
+        try {
+            return demandeConsultationMapper.toModel(demandeConsultationRepository.saveAndFlush(demande));
+        } catch (OptimisticLockingFailureException e) {
+            // Deux commencements simultanes : le perdant recoit un 409 et sa transaction est annulee.
+            throw ConsultationNonCommencableException.dejaCommencee(id);
+        }
+    }
+
+    private static void verifierCommencable(DemandeConsultation demande) {
+        if (demande.getStatut() != StatutDemandeConsultation.ACCEPTEE) {
+            throw ConsultationNonCommencableException.nonAcceptee(demande.getId());
+        }
+        if (demande.getConsultationId() != null) {
+            throw ConsultationNonCommencableException.dejaCommencee(demande.getId());
+        }
     }
 
     /**

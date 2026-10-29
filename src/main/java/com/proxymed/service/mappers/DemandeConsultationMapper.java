@@ -23,6 +23,7 @@ public class DemandeConsultationMapper {
                 .motifRefus(model.motifRefus())
                 .dateCreation(model.dateCreation())
                 .dateDecision(model.dateDecision())
+                .consultationId(model.consultationId())
                 .build();
     }
 
@@ -39,6 +40,7 @@ public class DemandeConsultationMapper {
                 .motifRefus(entity.getMotifRefus())
                 .dateCreation(entity.getDateCreation())
                 .dateDecision(entity.getDateDecision())
+                .consultationId(entity.getConsultationId())
                 .build();
     }
 }

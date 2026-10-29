@@ -18,6 +18,8 @@ public record DemandeConsultationResponse(
         UUID juniorId,
         String motifRefus,
         Instant dateCreation,
-        Instant dateDecision
+        Instant dateDecision,
+        // Consultation initiale commencee a partir de cette demande (null sinon)
+        UUID consultationId
 ) {
 }

@@ -23,6 +23,7 @@ public record DemandeConsultationModel(
         UUID juniorId,
         String motifRefus,
         Instant dateCreation,
-        Instant dateDecision
+        Instant dateDecision,
+        UUID consultationId
 ) {
 }

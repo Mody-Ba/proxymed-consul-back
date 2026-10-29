@@ -29,3 +29,6 @@ databaseChangeLog:
   - include:
       file: db/changelogs/010-create-demande-consultation-table.sql
       relativeToChangelogFile: false
+  - include:
+      file: db/changelogs/011-lien-demande-consultation-initiale.sql
+      relativeToChangelogFile: false
