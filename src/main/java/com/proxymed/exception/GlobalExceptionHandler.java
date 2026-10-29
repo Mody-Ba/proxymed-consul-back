@@ -61,6 +61,18 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(HttpStatus.CONFLICT.value(), "Demande deja traitee", ex.getMessage()));
     }
 
+    @ExceptionHandler(ConsultationNonCommencableException.class)
+    public ResponseEntity<ErrorResponse> handleConsultationNonCommencable(ConsultationNonCommencableException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(HttpStatus.CONFLICT.value(), "Consultation impossible a commencer", ex.getMessage()));
+    }
+
+    @ExceptionHandler(PatientExistantException.class)
+    public ResponseEntity<ErrorResponse> handlePatientExistant(PatientExistantException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(HttpStatus.CONFLICT.value(), "Patient existant", ex.getMessage()));
+    }
+
     @ExceptionHandler(QrCodeIntrouvableException.class)
     public ResponseEntity<ErrorResponse> handleQrCodeIntrouvable(QrCodeIntrouvableException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)

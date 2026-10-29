@@ -22,7 +22,9 @@ import java.util.UUID;
 /**
  * Demande de consultation initiale. demandeurId, medecinSeniorId et juniorId sont des UUID de
  * comptes du service d'authentification (claim "sub" du badge) : la Fiche 1 n'a pas de table
- * d'utilisateurs, donc aucune relation JPA. version protege contre deux decisions simultanees.
+ * d'utilisateurs, donc aucune relation JPA. consultationId reference une consultation initiale
+ * (cle etrangere en base, sans relation JPA : ce service ne manipule que sa propre entite).
+ * version protege contre deux decisions (ou deux commencements) simultanes.
  */
 @Entity
 @Table(name = "demande_consultation")
@@ -67,6 +69,10 @@ public class DemandeConsultation {
 
     @Column(name = "date_decision")
     private Instant dateDecision;
+
+    /** Consultation initiale (Fiche 1) commencee par le junior assigne ; null tant qu'elle ne l'est pas. */
+    @Column(name = "consultation_id")
+    private UUID consultationId;
 
     @Version
     private Long version;

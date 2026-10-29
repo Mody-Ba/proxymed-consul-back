@@ -1,6 +1,7 @@
 package com.proxymed.service;
 
 import com.proxymed.entity.Patient;
+import com.proxymed.exception.PatientExistantException;
 import com.proxymed.exception.ResourceNotFoundException;
 import com.proxymed.service.model.PatientModel;
 import com.proxymed.repository.PatientRepository;
@@ -34,6 +35,9 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     public PatientModel create(PatientModel model) {
+        if (patientRepository.existsByNumeroDossierProxymed(model.numeroDossierProxymed())) {
+            throw new PatientExistantException();
+        }
         Patient patient = patientMapper.toEntity(model);
         return toModelAvecAge(patientRepository.save(patient));
     }

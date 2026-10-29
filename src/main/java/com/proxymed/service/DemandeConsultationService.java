@@ -56,4 +56,14 @@ public interface DemandeConsultationService {
      * @throws com.proxymed.exception.DemandeDejaTraiteeException si elle n'est plus EN_ATTENTE
      */
     DemandeConsultationModel refuser(UUID id, UUID medecinSeniorId, String motifRefus);
+
+    /**
+     * Garde le lien entre une demande ACCEPTEE et la consultation initiale commencee a partir
+     * d'elle. Une demande n'est liee qu'une fois.
+     *
+     * @throws com.proxymed.exception.ResourceNotFoundException            si la demande n'existe pas
+     * @throws com.proxymed.exception.ConsultationNonCommencableException si elle n'est pas ACCEPTEE,
+     *                                                                     ou deja liee a une consultation
+     */
+    DemandeConsultationModel lierConsultation(UUID id, UUID consultationId);
 }

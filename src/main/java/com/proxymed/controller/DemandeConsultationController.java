@@ -3,8 +3,11 @@ package com.proxymed.controller;
 import com.proxymed.configs.security.UtilisateurConnecte;
 import com.proxymed.enums.StatutDemandeConsultation;
 import com.proxymed.mappers.DemandeConsultationMapper;
+import com.proxymed.service.CommencementConsultationService;
 import com.proxymed.service.DemandeConsultationService;
 import com.proxymed.service.model.AcceptationDemandeRequest;
+import com.proxymed.service.model.CommencementConsultationRequest;
+import com.proxymed.service.model.CommencementConsultationResponse;
 import com.proxymed.service.model.DemandeConsultationRequest;
 import com.proxymed.service.model.DemandeConsultationResponse;
 import com.proxymed.service.model.PageResponse;
@@ -31,7 +34,8 @@ import java.util.UUID;
 
 /**
  * Demandes de consultation initiale (regles PROVISOIRES) : un UTILISATEUR (patient ou proche) cree
- * une demande, un MEDECIN_SENIOR l'accepte en l'assignant a un MEDECIN_JUNIOR, ou la refuse.
+ * une demande, un MEDECIN_SENIOR l'accepte en l'assignant a un MEDECIN_JUNIOR, ou la refuse ; le
+ * junior assigne commence ensuite la consultation initiale (Fiche 1).
  * Seul controller de la Fiche 1 ouvert au role UTILISATEUR. L'identite de l'appelant vient
  * toujours du badge (UtilisateurConnecte), jamais du corps de la requete.
  */
@@ -44,6 +48,7 @@ public class DemandeConsultationController {
     private static final String TAILLE_DEFAUT = "20";
 
     private final DemandeConsultationService demandeConsultationService;
+    private final CommencementConsultationService commencementConsultationService;
     private final DemandeConsultationMapper demandeConsultationMapper;
 
     @ApiResponse(responseCode = "201", description = "Demande creee, EN_ATTENTE")
@@ -117,6 +122,25 @@ public class DemandeConsultationController {
                                                 @AuthenticationPrincipal UtilisateurConnecte utilisateur) {
         return demandeConsultationMapper.toResponse(
                 demandeConsultationService.accepter(id, utilisateur.id(), request.juniorId()));
+    }
+
+    /**
+     * Le medecin junior assigne commence la consultation initiale : cree le patient et le
+     * brouillon de Fiche 1 lies a la demande. Le junior vient du badge, jamais du corps.
+     */
+    @ApiResponse(responseCode = "201", description = "Patient et consultation initiale (BROUILLON) crees et lies")
+    @ApiResponse(responseCode = "400", description = "Champ manquant ou invalide, ou medecin qui n'est pas SENIOR")
+    @ApiResponse(responseCode = "403", description = "Pas MEDECIN_JUNIOR, ou demande assignee a un autre junior")
+    @ApiResponse(responseCode = "404", description = "Demande ou medecin senior introuvable")
+    @ApiResponse(responseCode = "409", description = "Demande non ACCEPTEE, deja commencee, ou numero de dossier deja utilise")
+    @PreAuthorize("hasRole('MEDECIN_JUNIOR')")
+    @PostMapping("/{id}/commencer")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CommencementConsultationResponse commencer(@PathVariable UUID id,
+                                                      @Valid @RequestBody CommencementConsultationRequest request,
+                                                      @AuthenticationPrincipal UtilisateurConnecte utilisateur) {
+        return demandeConsultationMapper.toResponse(commencementConsultationService.commencer(
+                id, utilisateur.id(), demandeConsultationMapper.toPatientModel(request), request.medecinSeniorId()));
     }
 
     @ApiResponse(responseCode = "404", description = "Demande introuvable")

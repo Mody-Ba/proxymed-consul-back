@@ -12,5 +12,7 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
 
     Optional<Patient> findByNumeroDossierProxymed(String numeroDossierProxymed);
 
+    boolean existsByNumeroDossierProxymed(String numeroDossierProxymed);
+
     Optional<Patient> findByNumeroDmi(String numeroDmi);
 }
