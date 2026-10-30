@@ -1,5 +1,6 @@
 package com.proxymed.controller;
 
+import com.proxymed.configs.security.UtilisateurConnecte;
 import com.proxymed.enums.DecisionEligibilite;
 import com.proxymed.enums.StatutConsultation;
 import com.proxymed.mappers.ConsultationMapper;
@@ -8,6 +9,7 @@ import com.proxymed.service.model.ConsultationResponse;
 import com.proxymed.service.model.ConsultationSummaryResponse;
 import com.proxymed.service.model.ConsultationUpdateRequest;
 import com.proxymed.service.ConsultationService;
+import com.proxymed.service.DemandeConsultationService;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -21,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,6 +45,7 @@ public class ConsultationController {
 
     private final ConsultationService consultationService;
     private final ConsultationMapper consultationMapper;
+    private final DemandeConsultationService demandeConsultationService;
 
     /**
      * Recherche/liste du DMI (section 5.3/5.4). medecinJuniorAffecteId sert aussi
@@ -93,12 +97,21 @@ public class ConsultationController {
                  .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + pdfFile.getFilename() + "\"")
                  .body(pdfFile);
     }
+    /**
+     * Un medecin junior n'obtient que le PDF d'une consultation qui lui est assignee (via la demande
+     * liee) ; le senior, et toute consultation sans demande liee, gardent l'acces d'avant.
+     */
     @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @ApiResponse(responseCode = "200", description = "Fiche de consultation au format PDF",
             content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE,
                     schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(responseCode = "403", description = "Consultation assignee a un autre medecin junior")
     @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<Resource> telechargerPdf(@PathVariable UUID id) {
+    public ResponseEntity<Resource> telechargerPdf(@PathVariable UUID id,
+                                                   @AuthenticationPrincipal UtilisateurConnecte utilisateur) {
+        if (utilisateur.accesLimiteAuxConsultationsAssignees()) {
+            demandeConsultationService.verifierJuniorAssigne(id, utilisateur.id());
+        }
         Resource pdf = consultationService.genererPdf(id);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)

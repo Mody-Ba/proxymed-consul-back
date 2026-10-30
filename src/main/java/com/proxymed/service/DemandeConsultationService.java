@@ -66,4 +66,15 @@ public interface DemandeConsultationService {
      *                                                                     ou deja liee a une consultation
      */
     DemandeConsultationModel lierConsultation(UUID id, UUID consultationId);
+
+    /**
+     * Controle d'assignation d'un medecin junior sur une consultation initiale : si une demande est
+     * liee a la consultation, le junior doit etre celui assigne a cette demande. Une consultation
+     * sans demande liee (creee directement, ou avant les demandes) n'est pas restreinte. Une
+     * consultation inexistante n'a pas de demande liee : son 404 reste a la charge de l'appelant.
+     *
+     * @param juniorConnecteId compte du badge (claim "sub"), jamais une valeur du corps de la requete
+     * @throws org.springframework.security.access.AccessDeniedException consultation assignee a un autre junior
+     */
+    void verifierJuniorAssigne(UUID consultationId, UUID juniorConnecteId);
 }

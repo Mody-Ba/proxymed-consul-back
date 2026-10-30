@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -116,6 +117,16 @@ public class DemandeConsultationServiceImpl implements DemandeConsultationServic
             // Deux commencements simultanes : le perdant recoit un 409 et sa transaction est annulee.
             throw ConsultationNonCommencableException.dejaCommencee(id);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void verifierJuniorAssigne(UUID consultationId, UUID juniorConnecteId) {
+        demandeConsultationRepository.findByConsultationId(consultationId).ifPresent(demande -> {
+            if (!juniorConnecteId.equals(demande.getJuniorId())) {
+                throw new AccessDeniedException("Consultation assignee a un autre medecin junior");
+            }
+        });
     }
 
     private static void verifierCommencable(DemandeConsultation demande) {

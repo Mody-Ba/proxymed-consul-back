@@ -27,7 +27,8 @@ import java.util.UUID;
  * verification qu'elle existe passe par ConsultationService.findById, et le rattachement
  * JPA (id -> reference) est delegue au mapper DB.
  * A l'import, aucun id n'est fourni : la consultation est lue dans le QR code du PDF scanne
- * (DetecteurQrPdf puis LecteurContenuQr), puis recoupee avec le patient du QR.
+ * (DetecteurQrPdf puis LecteurContenuQr), puis recoupee avec le patient du QR. Pour un medecin
+ * junior, l'assignation a la consultation est verifiee par DemandeConsultationService.
  */
 @Service
 @RequiredArgsConstructor
@@ -42,12 +43,13 @@ public class FicheSigneeServiceImpl implements FicheSigneeService {
     private final FicheSigneeRepository ficheSigneeRepository;
     private final ConsultationService consultationService;
     private final PatientService patientService;
+    private final DemandeConsultationService demandeConsultationService;
     private final FicheSigneeMapper ficheSigneeMapper;
     private final DetecteurQrPdf detecteurQrPdf;
     private final LecteurContenuQr lecteurContenuQr;
 
     @Override
-    public FicheSigneeModel importer(FicheSigneeModel model) {
+    public FicheSigneeModel importer(FicheSigneeModel model, UUID juniorAControlerId) {
         if (model.contenu() != null && model.contenu().length > TAILLE_MAX_OCTETS) {
             throw new RegleGestionException("Le fichier importe depasse la taille maximale de 10 Mo");
         }
@@ -57,6 +59,11 @@ public class FicheSigneeServiceImpl implements FicheSigneeService {
         ContenuQrModel qr = lireQrCode(model.contenu());
         patientService.findById(qr.patientId());
         ConsultationModel consultation = consultationService.findById(qr.consultationId());
+        // Avant tout autre controle sur la consultation : un autre junior n'apprend rien de plus
+        // (ni le patient, ni l'existence d'une fiche deja importee).
+        if (juniorAControlerId != null) {
+            demandeConsultationService.verifierJuniorAssigne(consultation.id(), juniorAControlerId);
+        }
         if (!qr.patientId().equals(consultation.patient().id())) {
             throw new RegleGestionException("Le patient du code QR (" + qr.patientId()
                     + ") ne correspond pas au patient de la consultation " + qr.consultationId());

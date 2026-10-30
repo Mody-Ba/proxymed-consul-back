@@ -21,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -60,6 +61,8 @@ class FicheSigneeServiceTest {
     private PatientService patientService;
     @Mock
     private DetecteurQrPdf detecteurQrPdf;
+    @Mock
+    private DemandeConsultationService demandeConsultationService;
 
     private final GenerateurContenuQr generateurContenuQr = new GenerateurContenuQr();
 
@@ -71,7 +74,7 @@ class FicheSigneeServiceTest {
     @BeforeEach
     void setUp() {
         ficheSigneeService = new FicheSigneeServiceImpl(ficheSigneeRepository, consultationService, patientService,
-                new FicheSigneeMapper(consultationRepository), detecteurQrPdf, new LecteurContenuQr());
+                demandeConsultationService, new FicheSigneeMapper(consultationRepository), detecteurQrPdf, new LecteurContenuQr());
 
         patientId = UUID.randomUUID();
         consultation = ConsultationInitiale.builder().id(UUID.randomUUID())
@@ -90,7 +93,7 @@ class FicheSigneeServiceTest {
 
     @Test
     void importer_rangeLePdfDansLaConsultationDuQrCode_avecSaDateDImport() {
-        FicheSigneeModel resultat = ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF));
+        FicheSigneeModel resultat = ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null);
 
         ArgumentCaptor<FicheSignee> captor = ArgumentCaptor.forClass(FicheSignee.class);
         verify(ficheSigneeRepository).saveAndFlush(captor.capture());
@@ -111,15 +114,46 @@ class FicheSigneeServiceTest {
     }
 
     @Test
+    void importer_sansJuniorAControler_neVerifiePasLAssignation() {
+        ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null);
+
+        verifyNoInteractions(demandeConsultationService);
+        verify(ficheSigneeRepository).saveAndFlush(any());
+    }
+
+    @Test
+    void importer_verifieLAssignationDuJunior_surLaConsultationDuQr() {
+        UUID junior = UUID.randomUUID();
+
+        ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), junior);
+
+        verify(demandeConsultationService).verifierJuniorAssigne(consultation.getId(), junior);
+        verify(ficheSigneeRepository).saveAndFlush(any());
+    }
+
+    /** Refus avant le controle du patient et de la fiche existante : rien n'est enregistre. */
+    @Test
+    void importer_rejette_siConsultationAssigneeAUnAutreJunior() {
+        UUID autreJunior = UUID.randomUUID();
+        doThrow(new AccessDeniedException("Consultation assignee a un autre medecin junior"))
+                .when(demandeConsultationService).verifierJuniorAssigne(consultation.getId(), autreJunior);
+
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), autreJunior))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(ficheSigneeRepository, never()).existsByConsultation_Id(any());
+        verify(ficheSigneeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void importer_rejette_siLeTypeNEstPasPdf_ouSiLeContenuNeCommencePasParPdf() {
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "image/png", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "image/png", PDF), null))
                 .isInstanceOf(RegleGestionException.class).hasMessageContaining("PDF");
         assertThatThrownBy(() -> ficheSigneeService.importer(
-                fichier("photo.pdf", "application/pdf", "ceci n'est pas un PDF".getBytes(StandardCharsets.US_ASCII))))
+                fichier("photo.pdf", "application/pdf", "ceci n'est pas un PDF".getBytes(StandardCharsets.US_ASCII)), null))
                 .isInstanceOf(RegleGestionException.class);
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("vide.pdf", "application/pdf", new byte[0])))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("vide.pdf", "application/pdf", new byte[0]), null))
                 .isInstanceOf(RegleGestionException.class);
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("sans-type.pdf", null, PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("sans-type.pdf", null, PDF), null))
                 .isInstanceOf(RegleGestionException.class);
         verifyNoInteractions(detecteurQrPdf);
         verify(ficheSigneeRepository, never()).saveAndFlush(any());
@@ -128,13 +162,13 @@ class FicheSigneeServiceTest {
     @Test
     void importer_rejette_auDelaDe10Mo_etAccepteExactement10Mo() {
         byte[] trop = pdfDeTaille(FicheSigneeServiceImpl.TAILLE_MAX_OCTETS + 1);
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("gros.pdf", "application/pdf", trop)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("gros.pdf", "application/pdf", trop), null))
                 .isInstanceOf(RegleGestionException.class)
                 .hasMessageContaining("10 Mo");
         verify(ficheSigneeRepository, never()).saveAndFlush(any());
 
         byte[] limite = pdfDeTaille(FicheSigneeServiceImpl.TAILLE_MAX_OCTETS);
-        assertThat(ficheSigneeService.importer(fichier("limite.pdf", "application/pdf", limite)).tailleOctets())
+        assertThat(ficheSigneeService.importer(fichier("limite.pdf", "application/pdf", limite), null).tailleOctets())
                 .isEqualTo(FicheSigneeServiceImpl.TAILLE_MAX_OCTETS);
     }
 
@@ -142,7 +176,7 @@ class FicheSigneeServiceTest {
     void importer_rejette_sansQrCode() {
         when(detecteurQrPdf.detecter(any())).thenReturn(List.of());
 
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null))
                 .isInstanceOf(QrCodeIntrouvableException.class)
                 .hasMessageContaining("Aucun code QR");
         verify(ficheSigneeRepository, never()).saveAndFlush(any());
@@ -151,13 +185,13 @@ class FicheSigneeServiceTest {
     @Test
     void importer_rejette_unQrQuiNEstPasProxymed_ouDUnAutreTypeDeFiche() {
         when(detecteurQrPdf.detecter(any())).thenReturn(List.of("https://exemple.com"));
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null))
                 .isInstanceOf(RegleGestionException.class)
                 .hasMessage("Le code QR detecte n'est pas un code QR PROXYMED");
 
         when(detecteurQrPdf.detecter(any())).thenReturn(List.of(generateurContenuQr.construire(
                 new ContenuQrModel("FICHE_2_SUIVI", patientId, consultation.getId()))));
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null))
                 .isInstanceOf(RegleGestionException.class)
                 .hasMessageContaining("Type de fiche non pris en charge");
         verify(ficheSigneeRepository, never()).saveAndFlush(any());
@@ -167,7 +201,7 @@ class FicheSigneeServiceTest {
     void importer_rejette_unQrDAncienFormat_sansCompatibilite() {
         when(detecteurQrPdf.detecter(any())).thenReturn(List.of(consultation.getId().toString()));
 
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null))
                 .isInstanceOf(RegleGestionException.class)
                 .hasMessage(LecteurContenuQr.MESSAGE_ANCIEN_FORMAT);
         verifyNoInteractions(consultationService, patientService);
@@ -178,7 +212,7 @@ class FicheSigneeServiceTest {
     void importer_retientLePremierQrProxymed_quandUneAutrePageEnPorteUnEtranger() {
         when(detecteurQrPdf.detecter(any())).thenReturn(List.of("https://exemple.com", qr(patientId, consultation.getId())));
 
-        assertThat(ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)).consultationId())
+        assertThat(ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null).consultationId())
                 .isEqualTo(consultation.getId());
     }
 
@@ -188,7 +222,7 @@ class FicheSigneeServiceTest {
         when(detecteurQrPdf.detecter(any())).thenReturn(List.of(qr(patientInconnu, consultation.getId())));
         when(patientService.findById(patientInconnu))
                 .thenThrow(new ResourceNotFoundException("Patient introuvable : " + patientInconnu));
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Patient introuvable");
 
@@ -196,7 +230,7 @@ class FicheSigneeServiceTest {
         when(detecteurQrPdf.detecter(any())).thenReturn(List.of(qr(patientId, consultationInconnue)));
         when(consultationService.findById(consultationInconnue))
                 .thenThrow(new ResourceNotFoundException("Consultation introuvable : " + consultationInconnue));
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Consultation introuvable");
         verify(ficheSigneeRepository, never()).saveAndFlush(any());
@@ -207,7 +241,7 @@ class FicheSigneeServiceTest {
         UUID autrePatient = UUID.randomUUID();
         when(detecteurQrPdf.detecter(any())).thenReturn(List.of(qr(autrePatient, consultation.getId())));
 
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null))
                 .isInstanceOf(RegleGestionException.class)
                 .hasMessageContaining("ne correspond pas au patient de la consultation");
         verify(ficheSigneeRepository, never()).saveAndFlush(any());
@@ -217,7 +251,7 @@ class FicheSigneeServiceTest {
     void importer_rejette_siLaConsultationADejaUneFicheSignee() {
         when(ficheSigneeRepository.existsByConsultation_Id(consultation.getId())).thenReturn(true);
 
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null))
                 .isInstanceOf(FicheSigneeExistanteException.class)
                 .hasMessageContaining("Une fiche signee existe deja pour cette consultation");
         verify(ficheSigneeRepository, never()).saveAndFlush(any());
@@ -229,7 +263,7 @@ class FicheSigneeServiceTest {
         doThrow(new DataIntegrityViolationException("uk_fiche_signee_consultation"))
                 .when(ficheSigneeRepository).saveAndFlush(any());
 
-        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF)))
+        assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "application/pdf", PDF), null))
                 .isInstanceOf(FicheSigneeExistanteException.class)
                 .hasMessageContaining("Une fiche signee existe deja pour cette consultation");
     }
