@@ -12,4 +12,12 @@ public record UtilisateurConnecte(
         String email,
         List<String> roles
 ) {
+
+    /**
+     * Vrai pour un MEDECIN_JUNIOR qui n'a pas aussi le role MEDECIN_SENIOR : son acces au PDF et
+     * a la fiche signee d'une consultation se limite aux consultations qui lui sont assignees.
+     */
+    public boolean accesLimiteAuxConsultationsAssignees() {
+        return roles.contains("MEDECIN_JUNIOR") && !roles.contains("MEDECIN_SENIOR");
+    }
 }

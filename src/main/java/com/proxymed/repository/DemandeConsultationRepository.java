@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -17,4 +18,7 @@ public interface DemandeConsultationRepository extends JpaRepository<DemandeCons
     Page<DemandeConsultation> findByStatut(StatutDemandeConsultation statut, Pageable pageable);
 
     Page<DemandeConsultation> findByJuniorIdAndStatut(UUID juniorId, StatutDemandeConsultation statut, Pageable pageable);
+
+    /** Au plus une demande par consultation (contrainte uk_demande_consultation_consultation). */
+    Optional<DemandeConsultation> findByConsultationId(UUID consultationId);
 }
