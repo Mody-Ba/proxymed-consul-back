@@ -2,6 +2,8 @@ package com.proxymed.service;
 
 import com.proxymed.entity.FicheSignee;
 import com.proxymed.exception.FicheSigneeExistanteException;
+import com.proxymed.exception.FichierNonPdfException;
+import com.proxymed.exception.FichierTropVolumineuxException;
 import com.proxymed.exception.QrCodeIntrouvableException;
 import com.proxymed.exception.RegleGestionException;
 import com.proxymed.exception.ResourceNotFoundException;
@@ -51,10 +53,10 @@ public class FicheSigneeServiceImpl implements FicheSigneeService {
     @Override
     public FicheSigneeModel importer(FicheSigneeModel model, UUID juniorAControlerId) {
         if (model.contenu() != null && model.contenu().length > TAILLE_MAX_OCTETS) {
-            throw new RegleGestionException("Le fichier importe depasse la taille maximale de 10 Mo");
+            throw new FichierTropVolumineuxException();
         }
         if (!estPdf(model)) {
-            throw new RegleGestionException("Le fichier importe doit etre un PDF");
+            throw new FichierNonPdfException();
         }
         ContenuQrModel qr = lireQrCode(model.contenu());
         patientService.findById(qr.patientId());
