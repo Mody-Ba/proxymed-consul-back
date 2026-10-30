@@ -44,8 +44,10 @@
         .entete .sous-titre { font-size: 10pt; font-weight: bold; margin-top: 2px; }
         .entete .meta { margin-top: 6px; font-size: 8.5pt; }
         .entete .meta span.lbl { color: #555555; }
-        .entete .qr { width: 100px; text-align: center; }
-        .entete .qr img { width: 90px; height: 90px; }
+        /* QR a 170px (environ 45 mm) : modules d'environ 1 mm imprimes, lisibles meme sur un scan moyen.
+           La zone blanche autour du symbole est deja incluse dans l'image (PdfGenerationService). */
+        .entete .qr { width: 180px; text-align: center; }
+        .entete .qr img { width: 170px; height: 170px; }
         .statut { display: inline-block; padding: 1px 6px; border: 1px solid #1f4e79; color: #1f4e79; font-weight: bold; font-size: 8pt; }
 
         /* Sections */

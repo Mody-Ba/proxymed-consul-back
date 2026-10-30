@@ -2,9 +2,12 @@ package com.proxymed.service;
 
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.DecodeHintType;
+import com.google.zxing.Result;
+import com.google.zxing.ResultPoint;
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.qrcode.QRCodeReader;
+import com.google.zxing.qrcode.detector.FinderPattern;
 import com.proxymed.enums.CouvertureSociale;
 import com.proxymed.enums.DecisionEligibilite;
 import com.proxymed.enums.ExamensBiologiquesPrescrits;
@@ -27,6 +30,8 @@ import com.proxymed.service.model.PatientModel;
 import com.proxymed.service.model.SituationSocialeModel;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.ImageType;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +42,7 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
+import javax.imageio.ImageIO;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -109,6 +115,30 @@ class PdfGenerationServiceTest {
                 + consultation.patient().id() + "\",\"consultationId\":\"" + consultation.id() + "\"}");
     }
 
+    /**
+     * Le QR de l'en-tete doit rester assez grand pour survivre a un scan : a 200 DPI (scan de
+     * qualite moyenne), le symbole (modules seuls, hors marge blanche) doit mesurer au moins 280 px
+     * (153 px seulement quand l'image etait affichee a 90px).
+     * La page rendue est ecrite dans target/ pour verification visuelle de l'en-tete.
+     */
+    @Test
+    void genererFicheConsultation_qrCodeAssezGrandPourUnScanA200Dpi() throws Exception {
+        ConsultationModel consultation = ficheComplete();
+        byte[] pdf = lire(pdfGenerationService.genererFicheConsultation(consultation));
+
+        BufferedImage page;
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            page = new PDFRenderer(document).renderImageWithDPI(0, 200, ImageType.GRAY);
+        }
+        ImageIO.write(page, "png", Path.of("target", "fiche-consultation-page1-200dpi.png").toFile());
+
+        Result resultat = new QRCodeReader().decode(
+                new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(page))),
+                Map.of(DecodeHintType.TRY_HARDER, Boolean.TRUE));
+        assertThat(resultat.getText()).contains(consultation.id().toString());
+        assertThat(tailleSymboleQrPx(resultat)).isGreaterThanOrEqualTo(280);
+    }
+
     @Test
     void genererQrCodeBase64_produitUnPngDecodableContenantLeTexte() throws Exception {
         String texte = "{\"type\":\"FICHE_1_CONSULTATION_INITIALE\",\"consultationId\":\"" + UUID.randomUUID() + "\"}";
@@ -156,6 +186,17 @@ class PdfGenerationServiceTest {
         try (InputStream flux = pdf.getInputStream()) {
             return flux.readAllBytes();
         }
+    }
+
+    /**
+     * Cote du symbole QR en pixels, deduit des motifs de reperage : distance entre les centres
+     * haut-gauche et haut-droit, plus 2 x 3,5 modules jusqu'aux bords exterieurs.
+     */
+    private static double tailleSymboleQrPx(Result resultat) {
+        ResultPoint[] points = resultat.getResultPoints();
+        FinderPattern hautGauche = (FinderPattern) points[1];
+        FinderPattern hautDroit = (FinderPattern) points[2];
+        return ResultPoint.distance(hautGauche, hautDroit) + 7 * hautGauche.getEstimatedModuleSize();
     }
 
     private String decoderQrCode(BufferedImage image) throws Exception {
