@@ -10,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
@@ -77,6 +78,28 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleQrCodeIntrouvable(QrCodeIntrouvableException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
                 .body(new ErrorResponse(HttpStatus.UNPROCESSABLE_CONTENT.value(), "Code QR introuvable", ex.getMessage()));
+    }
+
+    @ExceptionHandler(FichierTropVolumineuxException.class)
+    public ResponseEntity<ErrorResponse> handleFichierTropVolumineux(FichierTropVolumineuxException ex) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorResponse(HttpStatus.CONTENT_TOO_LARGE.value(), "Fichier trop volumineux", ex.getMessage()));
+    }
+
+    /**
+     * Requete refusee par le serveur avant le controller (limites spring.servlet.multipart.*) :
+     * meme reponse que le depassement detecte par le service. Le type JSON est force, aucun
+     * controller n'ayant encore ete choisi pour negocier le format.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        return handleFichierTropVolumineux(new FichierTropVolumineuxException());
+    }
+
+    @ExceptionHandler(FichierNonPdfException.class)
+    public ResponseEntity<ErrorResponse> handleFichierNonPdf(FichierNonPdfException ex) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(new ErrorResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(), "Format de fichier non supporte", ex.getMessage()));
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)

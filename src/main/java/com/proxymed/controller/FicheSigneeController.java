@@ -46,11 +46,13 @@ public class FicheSigneeController {
      * Un medecin junior ne peut importer que la fiche d'une consultation qui lui est assignee.
      */
     @ApiResponse(responseCode = "201", description = "Fiche rangee dans le dossier du patient")
-    @ApiResponse(responseCode = "400", description = "Fichier non PDF, trop volumineux ou illisible ; QR non PROXYMED, "
-            + "d'ancien format ou d'un autre type de fiche ; patient du QR different de celui de la consultation")
+    @ApiResponse(responseCode = "400", description = "PDF illisible ; QR non PROXYMED, d'ancien format ou d'un autre "
+            + "type de fiche ; patient du QR different de celui de la consultation")
     @ApiResponse(responseCode = "403", description = "Consultation du QR assignee a un autre medecin junior")
     @ApiResponse(responseCode = "404", description = "Patient ou consultation du QR code introuvable")
     @ApiResponse(responseCode = "409", description = "La consultation a deja une fiche signee")
+    @ApiResponse(responseCode = "413", description = "Fichier de plus de 10 Mo")
+    @ApiResponse(responseCode = "415", description = "Fichier qui n'est pas un PDF")
     @ApiResponse(responseCode = "422", description = "Aucun code QR trouve dans le PDF")
     @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
     @PostMapping(value = "/fiches-signees/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

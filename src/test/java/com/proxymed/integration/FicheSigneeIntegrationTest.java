@@ -283,16 +283,12 @@ class FicheSigneeIntegrationTest {
     }
 
     @Test
-    void import_rejetteCeQuiNEstPasUnVraiPdf() throws Exception {
-        importer(new MockMultipartFile("fichier", "photo.pdf", "application/pdf",
-                "pas un pdf".getBytes(StandardCharsets.US_ASCII)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erreur", is("Regle de gestion non respectee")))
-                .andExpect(jsonPath("$.message", is("Le fichier importe doit etre un PDF")));
-        importer(new MockMultipartFile("fichier", "fiche.png", "image/png", PDF_SANS_QR))
-                .andExpect(status().isBadRequest());
-        importer(new MockMultipartFile("fichier", "vide.pdf", "application/pdf", new byte[0]))
-                .andExpect(status().isBadRequest());
+    void import_rejetteCeQuiNEstPasUnVraiPdf_en415() throws Exception {
+        verifierNonPdf(importer(new MockMultipartFile("fichier", "photo.pdf", "application/pdf",
+                "pas un pdf".getBytes(StandardCharsets.US_ASCII))));
+        verifierNonPdf(importer(new MockMultipartFile("fichier", "fiche.png", "image/png", PDF_SANS_QR)));
+        verifierNonPdf(importer(new MockMultipartFile("fichier", "vide.pdf", "application/pdf", new byte[0])));
+        // Un PDF endommage reste un PDF : 400, et non 415.
         importer(new MockMultipartFile("fichier", "tronque.pdf", "application/pdf",
                 "%PDF-1.7\nfiche tronquee".getBytes(StandardCharsets.US_ASCII)))
                 .andExpect(status().isBadRequest())
@@ -301,14 +297,32 @@ class FicheSigneeIntegrationTest {
         assertThat(ficheSigneeRepository.count()).isZero();
     }
 
+    /** Vrai debut de JPEG (marqueurs SOI + APP0 JFIF), declare image/jpeg ou faussement application/pdf. */
     @Test
-    void import_rejetteUnFichierDePlusDe10Mo() throws Exception {
+    void import_fichierJpeg_renvoie415() throws Exception {
+        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10, 'J', 'F', 'I', 'F', 0x00};
+
+        verifierNonPdf(importer(new MockMultipartFile("fichier", "scan.jpg", "image/jpeg", jpeg)));
+        verifierNonPdf(importer(new MockMultipartFile("fichier", "scan.pdf", "application/pdf", jpeg)));
+
+        assertThat(ficheSigneeRepository.count()).isZero();
+    }
+
+    /** Controle du service (MockMvc ne passe pas par la limite du serveur, testee a part en HTTP). */
+    @Test
+    void import_rejetteUnFichierDePlusDe10Mo_en413() throws Exception {
         byte[] gros = new byte[10 * 1024 * 1024 + 1];
         System.arraycopy(PDF_SANS_QR, 0, gros, 0, PDF_SANS_QR.length);
 
         importer(new MockMultipartFile("fichier", "gros.pdf", "application/pdf", gros))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("10 Mo")));
+                .andExpect(status().isContentTooLarge())
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andExpect(jsonPath("$.status", is(413)))
+                .andExpect(jsonPath("$.erreur", is("Fichier trop volumineux")))
+                .andExpect(jsonPath("$.message", is("Le fichier importe depasse la taille maximale de 10 Mo")))
+                .andExpect(jsonPath("$.horodatage", notNullValue()))
+                .andExpect(jsonPath("$.details", hasSize(0)));
+        assertThat(ficheSigneeRepository.count()).isZero();
     }
 
     @Test
@@ -328,6 +342,16 @@ class FicheSigneeIntegrationTest {
     void telecharger_renvoie404_siAucuneFicheImportee() throws Exception {
         mockMvc.perform(get("/api/consultations/" + consultationId + "/fiche-signee"))
                 .andExpect(status().isNotFound());
+    }
+
+    private static void verifierNonPdf(ResultActions resultat) throws Exception {
+        resultat.andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andExpect(jsonPath("$.status", is(415)))
+                .andExpect(jsonPath("$.erreur", is("Format de fichier non supporte")))
+                .andExpect(jsonPath("$.message", is("Le fichier importe doit etre un PDF")))
+                .andExpect(jsonPath("$.horodatage", notNullValue()))
+                .andExpect(jsonPath("$.details", hasSize(0)));
     }
 
     private ResultActions importer(MockMultipartFile fichier) throws Exception {

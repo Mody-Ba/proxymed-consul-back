@@ -4,6 +4,8 @@ import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.FicheSignee;
 import com.proxymed.entity.Patient;
 import com.proxymed.exception.FicheSigneeExistanteException;
+import com.proxymed.exception.FichierNonPdfException;
+import com.proxymed.exception.FichierTropVolumineuxException;
 import com.proxymed.exception.QrCodeIntrouvableException;
 import com.proxymed.exception.RegleGestionException;
 import com.proxymed.exception.ResourceNotFoundException;
@@ -147,14 +149,14 @@ class FicheSigneeServiceTest {
     @Test
     void importer_rejette_siLeTypeNEstPasPdf_ouSiLeContenuNeCommencePasParPdf() {
         assertThatThrownBy(() -> ficheSigneeService.importer(fichier("fiche.pdf", "image/png", PDF), null))
-                .isInstanceOf(RegleGestionException.class).hasMessageContaining("PDF");
+                .isInstanceOf(FichierNonPdfException.class).hasMessage("Le fichier importe doit etre un PDF");
         assertThatThrownBy(() -> ficheSigneeService.importer(
                 fichier("photo.pdf", "application/pdf", "ceci n'est pas un PDF".getBytes(StandardCharsets.US_ASCII)), null))
-                .isInstanceOf(RegleGestionException.class);
+                .isInstanceOf(FichierNonPdfException.class);
         assertThatThrownBy(() -> ficheSigneeService.importer(fichier("vide.pdf", "application/pdf", new byte[0]), null))
-                .isInstanceOf(RegleGestionException.class);
+                .isInstanceOf(FichierNonPdfException.class);
         assertThatThrownBy(() -> ficheSigneeService.importer(fichier("sans-type.pdf", null, PDF), null))
-                .isInstanceOf(RegleGestionException.class);
+                .isInstanceOf(FichierNonPdfException.class);
         verifyNoInteractions(detecteurQrPdf);
         verify(ficheSigneeRepository, never()).saveAndFlush(any());
     }
@@ -163,7 +165,7 @@ class FicheSigneeServiceTest {
     void importer_rejette_auDelaDe10Mo_etAccepteExactement10Mo() {
         byte[] trop = pdfDeTaille(FicheSigneeServiceImpl.TAILLE_MAX_OCTETS + 1);
         assertThatThrownBy(() -> ficheSigneeService.importer(fichier("gros.pdf", "application/pdf", trop), null))
-                .isInstanceOf(RegleGestionException.class)
+                .isInstanceOf(FichierTropVolumineuxException.class)
                 .hasMessageContaining("10 Mo");
         verify(ficheSigneeRepository, never()).saveAndFlush(any());
 

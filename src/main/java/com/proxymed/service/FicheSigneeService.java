@@ -14,8 +14,9 @@ public interface FicheSigneeService {
      *
      * @param juniorAControlerId compte du badge d'un medecin junior, qui doit etre le junior assigne
      *        a la consultation du QR ; null si l'appelant n'est pas soumis a ce controle (senior)
-     * @throws com.proxymed.exception.RegleGestionException si le fichier n'est pas un PDF, depasse
-     *         10 Mo ou est illisible, si le QR n'est pas un QR PROXYMED (dont l'ancien format, id de
+     * @throws com.proxymed.exception.FichierTropVolumineuxException si le fichier depasse 10 Mo
+     * @throws com.proxymed.exception.FichierNonPdfException si le fichier n'est pas un PDF
+     * @throws com.proxymed.exception.RegleGestionException si le PDF est illisible, si le QR n'est pas un QR PROXYMED (dont l'ancien format, id de
      *         consultation seul) ou pas une FICHE_1_CONSULTATION_INITIALE, ou si le patient du QR
      *         n'est pas celui de la consultation
      * @throws com.proxymed.exception.QrCodeIntrouvableException si aucun QR code n'est trouve
