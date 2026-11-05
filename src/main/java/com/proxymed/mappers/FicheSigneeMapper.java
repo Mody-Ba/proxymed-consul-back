@@ -37,6 +37,7 @@ public class FicheSigneeMapper {
                 .nomFichier(model.nomFichier())
                 .tailleOctets(model.tailleOctets())
                 .dateImport(model.dateImport())
+                .statut(model.statut())
                 .build();
     }
 }

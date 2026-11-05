@@ -21,7 +21,9 @@ public interface FicheSigneeRepository extends JpaRepository<FicheSignee, UUID> 
     @Query("""
             select f.id as id, c.id as consultationId, c.patient.id as patientId,
                    c.dateConsultation as dateConsultation, f.nomFichier as nomFichier,
-                   f.typeContenu as typeContenu, f.tailleOctets as tailleOctets, f.dateImport as dateImport
+                   f.typeContenu as typeContenu, f.tailleOctets as tailleOctets, f.dateImport as dateImport,
+                   f.statut as statut, f.seniorVisaId as seniorVisaId, f.nomSeniorVisa as nomSeniorVisa,
+                   f.dateVisa as dateVisa, f.motifRenvoi as motifRenvoi
             from FicheSignee f join f.consultation c
             where c.patient.id = :patientId
             order by f.dateImport desc

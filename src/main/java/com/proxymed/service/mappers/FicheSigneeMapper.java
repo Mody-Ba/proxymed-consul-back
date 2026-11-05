@@ -46,6 +46,11 @@ public class FicheSigneeMapper {
                 .tailleOctets(entity.getTailleOctets())
                 .dateImport(entity.getDateImport())
                 .contenu(entity.getContenu())
+                .statut(entity.getStatut())
+                .seniorVisaId(entity.getSeniorVisaId())
+                .nomSeniorVisa(entity.getNomSeniorVisa())
+                .dateVisa(entity.getDateVisa())
+                .motifRenvoi(entity.getMotifRenvoi())
                 .build();
     }
 
@@ -59,6 +64,11 @@ public class FicheSigneeMapper {
                 .typeContenu(resume.getTypeContenu())
                 .tailleOctets(resume.getTailleOctets())
                 .dateImport(resume.getDateImport())
+                .statut(resume.getStatut())
+                .seniorVisaId(resume.getSeniorVisaId())
+                .nomSeniorVisa(resume.getNomSeniorVisa())
+                .dateVisa(resume.getDateVisa())
+                .motifRenvoi(resume.getMotifRenvoi())
                 .build();
     }
 }

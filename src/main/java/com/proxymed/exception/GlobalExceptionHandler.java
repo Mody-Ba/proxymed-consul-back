@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.exc.InvalidFormatException;
 import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
 import java.util.List;
@@ -143,10 +145,23 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException ex) {
-        String message = ex.getMostSpecificCause() instanceof UnrecognizedPropertyException upe
-                ? "Champ inconnu dans la requete : " + upe.getPropertyName()
-                : "Le corps de la requete est illisible ou mal forme";
+        Throwable cause = ex.getMostSpecificCause();
+        String message;
+        if (cause instanceof UnrecognizedPropertyException upe) {
+            message = "Champ inconnu dans la requete : " + upe.getPropertyName();
+        } else if (cause instanceof InvalidFormatException ife && ife.getTargetType() != null
+                && ife.getTargetType().isEnum() && nomDuChamp(ife) != null) {
+            // Valeur d'enum inconnue (ex. "typeVisite": "AUTRE") : on nomme le champ, sans recopier la
+            // valeur recue. Les autres formats invalides (booleen, UUID...) gardent le message generique.
+            message = "Valeur invalide pour le champ \"" + nomDuChamp(ife) + "\"";
+        } else {
+            message = "Le corps de la requete est illisible ou mal forme";
+        }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Requete invalide", message));
+    }
+
+    private static String nomDuChamp(JacksonException ex) {
+        return ex.getPath().isEmpty() ? null : ex.getPath().get(ex.getPath().size() - 1).getPropertyName();
     }
 }

@@ -2,6 +2,7 @@ package com.proxymed.service.model;
 
 import com.proxymed.enums.DecisionEligibilite;
 import com.proxymed.enums.StatutConsultation;
+import com.proxymed.enums.TypeVisite;
 import lombok.Builder;
 
 import java.time.LocalDate;
@@ -20,6 +21,7 @@ public record ConsultationSummaryResponse(
         String medecinJuniorAffecteNomComplet,
         LocalDate dateConsultation,
         StatutConsultation statut,
+        TypeVisite typeVisite,
         DecisionEligibilite decisionEligibilite
 ) {
 }

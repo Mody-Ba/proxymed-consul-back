@@ -105,10 +105,12 @@ public class ConsultationMapper {
                 .patientNomComplet(model.patient().nomComplet())
                 .patientNumeroDossierProxymed(model.patient().numeroDossierProxymed())
                 .patientNumeroDmi(model.patient().numeroDmi())
-                .medecinSeniorNomComplet(model.medecinSenior().nom() + " " + model.medecinSenior().prenom())
+                .medecinSeniorNomComplet(model.medecinSenior() != null
+                        ? model.medecinSenior().nom() + " " + model.medecinSenior().prenom() : null)
                 .medecinJuniorAffecteNomComplet(junior != null ? junior.nom() + " " + junior.prenom() : null)
                 .dateConsultation(model.dateConsultation())
                 .statut(model.statut())
+                .typeVisite(model.typeVisite())
                 .decisionEligibilite(model.decisionEligibilite())
                 .build();
     }
@@ -117,10 +119,11 @@ public class ConsultationMapper {
         return ConsultationResponse.builder()
                 .id(model.id())
                 .patient(patientMapper.toResponse(model.patient()))
-                .medecinSenior(medecinMapper.toResponse(model.medecinSenior()))
+                .medecinSenior(model.medecinSenior() != null ? medecinMapper.toResponse(model.medecinSenior()) : null)
                 .dateConsultation(model.dateConsultation())
                 .heureConsultation(model.heureConsultation())
                 .statut(model.statut())
+                .typeVisite(model.typeVisite())
 
                 .origineDemande(model.origineDemande())
                 .origineDemandeAutrePrecision(model.origineDemandeAutrePrecision())

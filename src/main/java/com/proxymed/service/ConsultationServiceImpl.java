@@ -5,6 +5,7 @@ import com.proxymed.enums.DecisionEligibilite;
 import com.proxymed.enums.OrigineDemande;
 import com.proxymed.enums.RoleMedecin;
 import com.proxymed.enums.StatutConsultation;
+import com.proxymed.enums.TypeVisite;
 import com.proxymed.exception.ConflitEtatException;
 import com.proxymed.exception.RegleGestionException;
 import com.proxymed.exception.ResourceNotFoundException;
@@ -12,6 +13,7 @@ import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.service.model.ConsultationModel;
 import com.proxymed.service.model.FacteurDeRisqueModel;
 import com.proxymed.service.model.MedecinModel;
+import com.proxymed.service.model.PatientModel;
 import com.proxymed.service.model.SituationSocialeModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -23,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -97,6 +100,17 @@ public class ConsultationServiceImpl implements ConsultationService {
         avecDefauts = validerReglesConditionnelles(avecDefauts);
         ConsultationInitiale entity = consultationMapper.toNewEntity(avecDefauts);
         return toModel(consultationRepository.save(entity));
+    }
+
+    @Override
+    public ConsultationModel creerVisiteVierge(UUID patientId, TypeVisite typeVisite) {
+        patientService.findById(patientId);
+        ConsultationModel visite = ConsultationModel.builder()
+                .patient(PatientModel.builder().id(patientId).build())
+                .statut(StatutConsultation.BROUILLON)
+                .typeVisite(Objects.requireNonNull(typeVisite, "typeVisite"))
+                .build();
+        return toModel(consultationRepository.save(consultationMapper.toNewEntity(visite)));
     }
 
     @Override
