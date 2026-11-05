@@ -1,5 +1,6 @@
 package com.proxymed.service;
 
+import com.proxymed.enums.TypeVisite;
 import com.proxymed.exception.RegleGestionException;
 import com.proxymed.service.model.ContenuQrModel;
 import org.springframework.stereotype.Component;
@@ -7,6 +8,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +22,7 @@ public class LecteurContenuQr {
     static final String CHAMP_TYPE = "type";
     static final String CHAMP_PATIENT = "patientId";
     static final String CHAMP_CONSULTATION = "consultationId";
+    static final String CHAMP_TYPE_VISITE = "typeVisite";
 
     static final String MESSAGE_PAS_PROXYMED = "Le code QR detecte n'est pas un code QR PROXYMED";
     static final String MESSAGE_ANCIEN_FORMAT = "Le code QR detecte est celui d'une ancienne fiche (il ne contient "
@@ -31,7 +34,8 @@ public class LecteurContenuQr {
      * @throws RegleGestionException si le texte est un QR d'ancienne fiche (id de consultation
      *                               seul), n'est pas un QR PROXYMED (JSON illisible, champ manquant,
      *                               id qui n'est pas un UUID) ou si le type de fiche n'est pas
-     *                               FICHE_1_CONSULTATION_INITIALE
+     *                               FICHE_1_CONSULTATION_INITIALE, ou si typeVisite est present
+     *                               sans etre INITIALE ou ROUTINE (absent : QR d'avant son ajout, accepte)
      */
     public ContenuQrModel lire(String texte) {
         if (uuidCanonique(texte) != null) {
@@ -51,7 +55,19 @@ public class LecteurContenuQr {
             throw new RegleGestionException("Type de fiche non pris en charge : " + type + " (seule la fiche "
                     + GenerateurContenuQr.TYPE_FICHE_1_CONSULTATION_INITIALE + " peut etre importee ici)");
         }
-        return ContenuQrModel.builder().type(type).patientId(patientId).consultationId(consultationId).build();
+        return ContenuQrModel.builder().type(type).patientId(patientId).consultationId(consultationId)
+                .typeVisite(typeVisite(racine)).build();
+    }
+
+    private TypeVisite typeVisite(JsonNode racine) {
+        if (!racine.has(CHAMP_TYPE_VISITE)) {
+            return null;
+        }
+        String valeur = texte(racine, CHAMP_TYPE_VISITE);
+        return Arrays.stream(TypeVisite.values())
+                .filter(type -> type.name().equals(valeur))
+                .findFirst()
+                .orElseThrow(() -> new RegleGestionException(MESSAGE_PAS_PROXYMED));
     }
 
     private Optional<JsonNode> lireJson(String texte) {

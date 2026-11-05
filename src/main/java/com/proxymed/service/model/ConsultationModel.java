@@ -8,6 +8,7 @@ import com.proxymed.enums.NiveauPrecarite;
 import com.proxymed.enums.OrigineDemande;
 import com.proxymed.enums.RisqueIsolement;
 import com.proxymed.enums.StatutConsultation;
+import com.proxymed.enums.TypeVisite;
 import lombok.Builder;
 
 import java.time.Instant;
@@ -33,6 +34,7 @@ public record ConsultationModel(
         LocalDate dateConsultation,
         LocalTime heureConsultation,
         StatutConsultation statut,
+        TypeVisite typeVisite,
 
         OrigineDemande origineDemande,
         String origineDemandeAutrePrecision,

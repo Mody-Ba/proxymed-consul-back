@@ -1,5 +1,6 @@
 package com.proxymed.service;
 
+import com.proxymed.enums.TypeVisite;
 import com.proxymed.exception.RegleGestionException;
 import com.proxymed.service.model.ConsultationModel;
 import com.proxymed.service.model.ContenuQrModel;
@@ -107,5 +108,37 @@ class ContenuQrTest {
                 "{\"type\":\"FICHE_2_SUIVI\",\"patientId\":\"" + PATIENT + "\",\"consultationId\":\"" + CONSULTATION + "\"}"))
                 .isInstanceOf(RegleGestionException.class)
                 .hasMessageContaining("Type de fiche non pris en charge : FICHE_2_SUIVI");
+    }
+
+    @Test
+    void construire_ajouteLeTypeDeVisite_sansChangerLeTypeDeFiche() {
+        ConsultationModel visite = ConsultationModel.builder()
+                .id(UUID.fromString(CONSULTATION))
+                .patient(PatientModel.builder().id(UUID.fromString(PATIENT)).build())
+                .typeVisite(TypeVisite.ROUTINE)
+                .build();
+
+        assertThat(generateur.construire(visite)).isEqualTo("{\"type\":\"FICHE_1_CONSULTATION_INITIALE\","
+                + "\"patientId\":\"" + PATIENT + "\",\"consultationId\":\"" + CONSULTATION + "\",\"typeVisite\":\"ROUTINE\"}");
+        assertThat(lecteur.lire(generateur.construire(visite))).isEqualTo(new ContenuQrModel(
+                "FICHE_1_CONSULTATION_INITIALE", UUID.fromString(PATIENT), UUID.fromString(CONSULTATION), TypeVisite.ROUTINE));
+    }
+
+    @Test
+    void lire_qrSansTypeDeVisite_resteAccepte() {
+        ContenuQrModel lu = lecteur.lire("{\"type\":\"FICHE_1_CONSULTATION_INITIALE\",\"patientId\":\"" + PATIENT
+                + "\",\"consultationId\":\"" + CONSULTATION + "\"}");
+
+        assertThat(lu.typeVisite()).isNull();
+        assertThat(lu.consultationId()).isEqualTo(UUID.fromString(CONSULTATION));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\"AUTRE\"", "\"routine\"", "\"\"", "null", "1"})
+    void lire_rejetteUnTypeDeVisitePresentMaisInconnu(String valeur) {
+        assertThatThrownBy(() -> lecteur.lire("{\"type\":\"FICHE_1_CONSULTATION_INITIALE\",\"patientId\":\"" + PATIENT
+                + "\",\"consultationId\":\"" + CONSULTATION + "\",\"typeVisite\":" + valeur + "}"))
+                .isInstanceOf(RegleGestionException.class)
+                .hasMessage("Le code QR detecte n'est pas un code QR PROXYMED");
     }
 }

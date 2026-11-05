@@ -2,6 +2,7 @@ package com.proxymed.service;
 
 import com.proxymed.enums.DecisionEligibilite;
 import com.proxymed.enums.StatutConsultation;
+import com.proxymed.enums.TypeVisite;
 import com.proxymed.service.model.ConsultationModel;
 
 import org.springframework.core.io.Resource;
@@ -31,6 +32,14 @@ public interface ConsultationService {
     List<ConsultationModel> fichesEnAttenteValidationDass();
 
     ConsultationModel creerBrouillon(ConsultationModel intention);
+
+    /**
+     * Visite vierge creee a l'impression de la fiche, pour un patient existant : BROUILLON, du type
+     * donne, sans senior ni junior, sans date ni heure (elles seront ecrites a la main sur la fiche).
+     *
+     * @throws com.proxymed.exception.ResourceNotFoundException si le patient n'existe pas
+     */
+    ConsultationModel creerVisiteVierge(UUID patientId, TypeVisite typeVisite);
 
     ConsultationModel mettreAJour(UUID id, ConsultationModel intention);
 

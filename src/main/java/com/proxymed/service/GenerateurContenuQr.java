@@ -12,7 +12,9 @@ import java.util.Objects;
 /**
  * Construit le texte encode dans le QR code de la Fiche 1, relu a l'import par
  * {@link LecteurContenuQr}. L'id de la consultation designe la fiche ; l'id du patient permet
- * de verifier a l'import que la fiche est rangee dans le bon dossier.
+ * de verifier a l'import que la fiche est rangee dans le bon dossier. typeVisite (INITIALE ou
+ * ROUTINE) est un champ en plus : le champ type reste FICHE_1_CONSULTATION_INITIALE, si bien
+ * que l'import actuel lit ces QR sans changement. Il n'est omis que si la visite n'a pas de type.
  */
 @Component
 public class GenerateurContenuQr {
@@ -27,6 +29,7 @@ public class GenerateurContenuQr {
                 .type(TYPE_FICHE_1_CONSULTATION_INITIALE)
                 .patientId(consultation.patient().id())
                 .consultationId(consultation.id())
+                .typeVisite(consultation.typeVisite())
                 .build());
     }
 
@@ -36,6 +39,9 @@ public class GenerateurContenuQr {
         champs.put(LecteurContenuQr.CHAMP_PATIENT, Objects.requireNonNull(contenu.patientId(), "patientId").toString());
         champs.put(LecteurContenuQr.CHAMP_CONSULTATION,
                 Objects.requireNonNull(contenu.consultationId(), "consultationId").toString());
+        if (contenu.typeVisite() != null) {
+            champs.put(LecteurContenuQr.CHAMP_TYPE_VISITE, contenu.typeVisite().name());
+        }
         return JSON.writeValueAsString(champs);
     }
 }

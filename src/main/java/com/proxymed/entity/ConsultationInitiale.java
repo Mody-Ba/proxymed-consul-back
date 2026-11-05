@@ -8,6 +8,7 @@ import com.proxymed.enums.NiveauPrecarite;
 import com.proxymed.enums.OrigineDemande;
 import com.proxymed.enums.RisqueIsolement;
 import com.proxymed.enums.StatutConsultation;
+import com.proxymed.enums.TypeVisite;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -59,9 +60,15 @@ public class ConsultationInitiale {
     @JoinColumn(name = "patient_id", nullable = false)
     private Patient patient;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "medecin_senior_id", nullable = false)
+    /** Null pour une visite creee a l'impression, avant qu'un senior ne s'en charge. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "medecin_senior_id")
     private Medecin medecinSenior;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type_visite", nullable = false, length = 20)
+    @Builder.Default
+    private TypeVisite typeVisite = TypeVisite.INITIALE;
 
     @Column(name = "date_consultation")
     private LocalDate dateConsultation;

@@ -1,5 +1,7 @@
 package com.proxymed.repository;
 
+import com.proxymed.enums.StatutFicheSignee;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -25,4 +27,14 @@ public interface FicheSigneeResume {
     long getTailleOctets();
 
     Instant getDateImport();
+
+    StatutFicheSignee getStatut();
+
+    UUID getSeniorVisaId();
+
+    String getNomSeniorVisa();
+
+    Instant getDateVisa();
+
+    String getMotifRenvoi();
 }

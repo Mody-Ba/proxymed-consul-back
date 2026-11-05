@@ -4,6 +4,7 @@ import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.FacteurDeRisque;
 import com.proxymed.entity.Medecin;
 import com.proxymed.entity.SituationSociale;
+import com.proxymed.enums.TypeVisite;
 import com.proxymed.repository.FacteurDeRisqueRepository;
 import com.proxymed.repository.MedecinRepository;
 import com.proxymed.repository.PatientRepository;
@@ -46,8 +47,10 @@ public class ConsultationMapper {
     public ConsultationInitiale toNewEntity(ConsultationModel model) {
         return ConsultationInitiale.builder()
                 .patient(patientRepository.getReferenceById(model.patient().id()))
-                .medecinSenior(medecinRepository.getReferenceById(model.medecinSenior().id()))
+                .medecinSenior(model.medecinSenior() != null
+                        ? medecinRepository.getReferenceById(model.medecinSenior().id()) : null)
                 .statut(model.statut())
+                .typeVisite(model.typeVisite() != null ? model.typeVisite() : TypeVisite.INITIALE)
                 .dateConsultation(model.dateConsultation())
                 .heureConsultation(model.heureConsultation())
                 .saisiePar(model.saisiePar())
@@ -133,10 +136,11 @@ public class ConsultationMapper {
         return ConsultationModel.builder()
                 .id(entity.getId())
                 .patient(patientMapper.toModel(entity.getPatient()))
-                .medecinSenior(medecinMapper.toModel(entity.getMedecinSenior()))
+                .medecinSenior(entity.getMedecinSenior() != null ? medecinMapper.toModel(entity.getMedecinSenior()) : null)
                 .dateConsultation(entity.getDateConsultation())
                 .heureConsultation(entity.getHeureConsultation())
                 .statut(entity.getStatut())
+                .typeVisite(entity.getTypeVisite())
 
                 .origineDemande(entity.getOrigineDemande())
                 .origineDemandeAutrePrecision(entity.getOrigineDemandeAutrePrecision())

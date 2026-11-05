@@ -1,5 +1,6 @@
 package com.proxymed.service.model;
 
+import com.proxymed.enums.StatutFicheSignee;
 import lombok.Builder;
 
 import java.time.Instant;
@@ -18,6 +19,7 @@ public record FicheSigneeResponse(
         LocalDate dateConsultation,
         String nomFichier,
         long tailleOctets,
-        Instant dateImport
+        Instant dateImport,
+        StatutFicheSignee statut
 ) {
 }
