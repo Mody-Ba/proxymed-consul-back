@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -107,6 +108,20 @@ class CorsIntegrationTest {
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGINE_ANGULAR))
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString("Content-Disposition")))
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS));
+    }
+
+    /** Impression de fiches : le front doit pouvoir lire le nom du PDF et les ids des visites creees. */
+    @Test
+    void impressionDesFiches_admin_contentDispositionEtIdsDesVisitesExposes() throws Exception {
+        mockMvc.perform(post("/api/visites/impression")
+                        .header(HttpHeaders.ORIGIN, ORIGINE_ANGULAR)
+                        .header(HttpHeaders.AUTHORIZATION, fabriqueBadge.bearer("ADMIN"))
+                        .contentType("application/json")
+                        .content("{\"fiches\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ORIGINE_ANGULAR))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString("Content-Disposition")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString("X-Visites-Ids")));
     }
 
     /** Le 401 JSON reste identique, et porte les en-tetes CORS pour que le front puisse le lire. */
