@@ -9,6 +9,9 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.proxymed.service.model.ConsultationModel;
+import org.apache.pdfbox.io.IOUtils;
+import org.apache.pdfbox.io.RandomAccessReadBuffer;
+import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -21,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.time.ZoneId;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -55,7 +59,31 @@ public class PdfGenerationService {
      */
     public Resource genererFicheConsultation(ConsultationModel consultation) {
         String html = remplirTemplate(consultation);
-        return convertirEnPdf(html);
+        return ecrireDansFichierTemporaire(pdf -> convertirEnPdf(html, pdf));
+    }
+
+    /**
+     * Un seul PDF pour plusieurs fiches, dans l'ordre de la liste : chaque fiche est rendue a part
+     * (meme template, meme QR), puis les documents sont mis bout a bout. Chaque fiche commence donc
+     * sur une nouvelle page et garde sa propre numerotation "Page x / y". Meme Resource a usage unique.
+     */
+    public Resource genererFichesCombinees(List<ConsultationModel> fiches) {
+        if (fiches.isEmpty()) {
+            throw new IllegalArgumentException("Aucune fiche a generer");
+        }
+        List<byte[]> pdfs = fiches.stream().map(fiche -> {
+            ByteArrayOutputStream pdf = new ByteArrayOutputStream();
+            convertirEnPdf(remplirTemplate(fiche), pdf);
+            return pdf.toByteArray();
+        }).toList();
+        return ecrireDansFichierTemporaire(destination -> {
+            PDFMergerUtility fusion = new PDFMergerUtility();
+            for (byte[] pdf : pdfs) {
+                fusion.addSource(new RandomAccessReadBuffer(pdf));
+            }
+            fusion.setDestinationStream(destination);
+            fusion.mergeDocuments(IOUtils.createMemoryOnlyStreamCache());
+        });
     }
 
     String remplirTemplate(ConsultationModel consultation) {
@@ -81,23 +109,36 @@ public class PdfGenerationService {
         }
     }
 
-    private Resource convertirEnPdf(String html) {
+    private void convertirEnPdf(String html, OutputStream pdf) {
+        PdfRendererBuilder builder = new PdfRendererBuilder();
+        builder.useFastMode();
+        builder.withHtmlContent(html, null);
+        builder.toStream(pdf);
+        try {
+            builder.run();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Echec de la conversion HTML -> PDF de la fiche", e);
+        }
+    }
+
+    private Resource ecrireDansFichierTemporaire(EcriturePdf ecriture) {
         try {
             var file = File.createTempFile("fiche-consultation-", ".pdf");
             try (var pdf = new FileOutputStream(file)) {
-                PdfRendererBuilder builder = new PdfRendererBuilder();
-                builder.useFastMode();
-                builder.withHtmlContent(html, null);
-                builder.toStream(pdf);
-                builder.run();
+                ecriture.ecrire(pdf);
             } catch (IOException | RuntimeException e) {
                 file.delete();
                 throw e;
             }
             return new FichePdfTemporaire(file);
         } catch (IOException e) {
-            throw new UncheckedIOException("Echec de la conversion HTML -> PDF de la fiche", e);
+            throw new UncheckedIOException("Echec de l'ecriture du PDF de la fiche", e);
         }
+    }
+
+    @FunctionalInterface
+    private interface EcriturePdf {
+        void ecrire(OutputStream destination) throws IOException;
     }
 
     /**

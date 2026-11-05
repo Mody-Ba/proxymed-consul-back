@@ -79,7 +79,8 @@ public class WebSecurityConfig {
     /**
      * Origines autorisees : proxymed.cors.origines (PROXYMED_CORS_ORIGINS, separees par des virgules).
      * Pas de cookies : le badge voyage dans l'en-tete Authorization. "*" est refuse au demarrage.
-     * Content-Disposition est expose pour que le front lise le nom des PDF telecharges.
+     * Content-Disposition est expose pour que le front lise le nom des PDF telecharges, et
+     * X-Visites-Ids pour qu'il sache quelles visites une impression de fiches a creees.
      */
     @Bean
     CorsConfigurationSource corsConfigurationSource(@Value("${proxymed.cors.origines}") String origines) {
@@ -96,7 +97,7 @@ public class WebSecurityConfig {
         config.setAllowedOrigins(originesAutorisees);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
-        config.setExposedHeaders(List.of("Content-Disposition"));
+        config.setExposedHeaders(List.of("Content-Disposition", "X-Visites-Ids"));
         config.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

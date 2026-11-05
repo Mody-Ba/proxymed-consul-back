@@ -7,6 +7,8 @@
   Variables : c = ConsultationModel complet, qrCode = PNG base64 du QR code (JSON : type de fiche,
   id du patient et id de la consultation, cf. GenerateurContenuQr),
   fuseauHoraire = ZoneId d'affichage des horodatages (Instant) de signature.
+  Impression par l'admin (ImpressionFichesServiceImpl) : c ne porte que l'identite du patient,
+  l'id et le type de la visite ; toutes les autres sections sortent vides, a remplir a la main.
 -->
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" lang="fr">
 <head>
@@ -127,6 +129,11 @@
                 &#160;&#160;
                 <span class="lbl">Statut :</span>
                 <span class="statut" th:text="${c.statut}">BROUILLON</span>
+                <th:block th:if="${c.typeVisite != null}">
+                    &#160;&#160;
+                    <span class="lbl">Type de visite :</span>
+                    <strong th:text="${c.typeVisite.name() == 'ROUTINE'} ? 'Visite de routine' : 'Visite initiale'">Visite initiale</strong>
+                </th:block>
             </div>
             <div class="meta">
                 <span class="lbl">Identifiant de la fiche :</span>
