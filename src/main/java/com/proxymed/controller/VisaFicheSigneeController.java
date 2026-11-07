@@ -3,6 +3,7 @@ package com.proxymed.controller;
 import com.proxymed.configs.security.UtilisateurConnecte;
 import com.proxymed.enums.StatutFicheSignee;
 import com.proxymed.mappers.VisaFicheSigneeMapper;
+import com.proxymed.service.RapportFicheService;
 import com.proxymed.service.VisaFicheSigneeService;
 import com.proxymed.service.VisaFichesLotService;
 import com.proxymed.service.model.DecisionLotResponse;
@@ -11,17 +12,27 @@ import com.proxymed.service.model.PageResponse;
 import com.proxymed.service.model.RenvoiLotRequest;
 import com.proxymed.service.model.VisaLotRequest;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 /**
  * Liste, visa et renvoi des fiches scannees, reserves au MEDECIN_SENIOR (ni l'admin ni le junior).
@@ -41,6 +52,7 @@ public class VisaFicheSigneeController {
     private final VisaFicheSigneeService visaFicheSigneeService;
     private final VisaFichesLotService visaFichesLotService;
     private final VisaFicheSigneeMapper visaFicheSigneeMapper;
+    private final RapportFicheService rapportFicheService;
 
     /**
      * Fiches d'un statut (EN_ATTENTE par defaut), de la plus anciennement importee a la plus recente.
@@ -90,5 +102,28 @@ public class VisaFicheSigneeController {
     @PostMapping("/renvoi")
     public DecisionLotResponse renvoyer(@Valid @RequestBody RenvoiLotRequest request) {
         return visaFicheSigneeMapper.toResponse(visaFichesLotService.renvoyer(request.visiteIds(), request.motif()));
+    }
+
+    /**
+     * Rapport PDF d'une fiche VISEE : page de garde puis scan signe, regenere a chaque appel. Tout
+     * senior peut le telecharger (regle par defaut, a confirmer). Le nom du fichier ne contient que
+     * l'identifiant de la visite, aucune donnee du patient. Pas de "produces" sur l'adresse : les
+     * erreurs (404, 409) restent ainsi rendues en JSON, au format habituel.
+     */
+    @ApiResponse(responseCode = "200", description = "Rapport au format PDF",
+            content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE,
+                    schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(responseCode = "403", description = "Reserve au medecin senior")
+    @ApiResponse(responseCode = "404", description = "Visite introuvable, ou aucune fiche importee")
+    @ApiResponse(responseCode = "409", description = "Fiche qui n'est pas VISEE")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
+    @GetMapping("/{consultationId}/rapport")
+    public ResponseEntity<Resource> rapport(@PathVariable UUID consultationId) {
+        Resource pdf = rapportFicheService.generer(consultationId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("rapport-" + consultationId + ".pdf").build().toString())
+                .body(pdf);
     }
 }
