@@ -19,7 +19,7 @@ public class SituationSocialeController {
     private final SituationSocialeService situationSocialeService;
     private final SituationSocialeMapper situationSocialeMapper;
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping
     public List<SituationSocialeResponse> findAll() {
         return situationSocialeMapper.toResponseList(situationSocialeService.findActives());

@@ -30,32 +30,32 @@ public class MedecinController {
     private final MedecinService medecinService;
     private final MedecinMapper medecinMapper;
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasAnyRole('MEDECIN_SENIOR', 'ADMIN')")
     @GetMapping
     public List<MedecinResponse> findAll(@RequestParam(required = false) RoleMedecin role) {
         return medecinService.findAll(role).stream().map(medecinMapper::toResponse).toList();
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasAnyRole('MEDECIN_SENIOR', 'ADMIN')")
     @GetMapping("/{id}")
     public MedecinResponse findById(@PathVariable Long id) {
         return medecinMapper.toResponse(medecinService.findById(id));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public MedecinResponse create(@Valid @RequestBody MedecinRequest request) {
         return medecinMapper.toResponse(medecinService.create(medecinMapper.toModel(request)));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public MedecinResponse update(@PathVariable Long id, @Valid @RequestBody MedecinRequest request) {
         return medecinMapper.toResponse(medecinService.update(id, medecinMapper.toModel(request)));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {

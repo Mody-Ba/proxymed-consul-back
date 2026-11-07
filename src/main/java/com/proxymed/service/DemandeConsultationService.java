@@ -30,19 +30,12 @@ public interface DemandeConsultationService {
     Page<DemandeConsultationModel> findAll(StatutDemandeConsultation statut, int page, int taille);
 
     /**
-     * Demandes ACCEPTEES assignees a ce medecin junior.
-     *
-     * @throws com.proxymed.exception.RegleGestionException si page < 0 ou taille hors [1, 100]
-     */
-    Page<DemandeConsultationModel> findAssigneesAuJunior(UUID juniorId, int page, int taille);
-
-    /**
      * @throws com.proxymed.exception.ResourceNotFoundException si la demande n'existe pas
      */
     DemandeConsultationModel findById(UUID id);
 
     /**
-     * Passe la demande a ACCEPTEE et l'assigne au medecin junior.
+     * Passe la demande a ACCEPTEE ; juniorId (facultatif) est seulement enregistre.
      *
      * @throws com.proxymed.exception.ResourceNotFoundException   si la demande n'existe pas
      * @throws com.proxymed.exception.DemandeDejaTraiteeException si elle n'est plus EN_ATTENTE
@@ -56,25 +49,4 @@ public interface DemandeConsultationService {
      * @throws com.proxymed.exception.DemandeDejaTraiteeException si elle n'est plus EN_ATTENTE
      */
     DemandeConsultationModel refuser(UUID id, UUID medecinSeniorId, String motifRefus);
-
-    /**
-     * Garde le lien entre une demande ACCEPTEE et la consultation initiale commencee a partir
-     * d'elle. Une demande n'est liee qu'une fois.
-     *
-     * @throws com.proxymed.exception.ResourceNotFoundException            si la demande n'existe pas
-     * @throws com.proxymed.exception.ConsultationNonCommencableException si elle n'est pas ACCEPTEE,
-     *                                                                     ou deja liee a une consultation
-     */
-    DemandeConsultationModel lierConsultation(UUID id, UUID consultationId);
-
-    /**
-     * Controle d'assignation d'un medecin junior sur une consultation initiale : si une demande est
-     * liee a la consultation, le junior doit etre celui assigne a cette demande. Une consultation
-     * sans demande liee (creee directement, ou avant les demandes) n'est pas restreinte. Une
-     * consultation inexistante n'a pas de demande liee : son 404 reste a la charge de l'appelant.
-     *
-     * @param juniorConnecteId compte du badge (claim "sub"), jamais une valeur du corps de la requete
-     * @throws org.springframework.security.access.AccessDeniedException consultation assignee a un autre junior
-     */
-    void verifierJuniorAssigne(UUID consultationId, UUID juniorConnecteId);
 }

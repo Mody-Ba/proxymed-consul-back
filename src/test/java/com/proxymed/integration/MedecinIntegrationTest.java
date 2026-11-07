@@ -14,7 +14,11 @@ import com.proxymed.repository.MedecinRepository;
 import com.proxymed.repository.PatientRepository;
 import com.proxymed.repository.StructureRepository;
 import com.proxymed.service.model.MedecinRequest;
-import com.proxymed.support.BadgeMedecinParDefaut;
+import com.proxymed.support.FabriqueBadge;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,9 +40,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(BadgeMedecinParDefaut.class)
+@Import({FabriqueBadge.class, MedecinIntegrationTest.BadgeAdminParDefaut.class})
 @Transactional
 class MedecinIntegrationTest {
+
+    /**
+     * L'annuaire des medecins est gere par l'admin (ecriture reservee a ADMIN, lecture ADMIN et
+     * SENIOR) : chaque requete part avec un badge ADMIN. Les droits par role sont verifies dans
+     * MatriceAccesIntegrationTest.
+     */
+    @TestConfiguration
+    static class BadgeAdminParDefaut {
+        @Bean
+        MockMvcBuilderCustomizer badgeAdminParDefaut(FabriqueBadge fabriqueBadge) {
+            return builder -> builder.defaultRequest(get("/")
+                    .header(HttpHeaders.AUTHORIZATION, fabriqueBadge.bearer("ADMIN")));
+        }
+    }
 
     @Autowired
     private MockMvc mockMvc;

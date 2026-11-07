@@ -226,13 +226,12 @@ class DemandeConsultationIntegrationTest {
     // ---------- GET /{id} ----------
 
     @Test
-    void findById_autoriseSeniorCreateurEtJuniorAssigne() throws Exception {
+    void findById_autoriseSeniorEtCreateur() throws Exception {
         UUID id = creerDemande(utilisateurA, "Awa Diop");
         accepter(id, junior).andExpect(status().isOk());
 
         for (var acces : List.of(Map.entry("MEDECIN_SENIOR", UUID.randomUUID()),
-                Map.entry("UTILISATEUR", utilisateurA),
-                Map.entry("MEDECIN_JUNIOR", junior))) {
+                Map.entry("UTILISATEUR", utilisateurA))) {
             mockMvc.perform(en(acces.getKey(), acces.getValue(), get(URL + "/" + id)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id", is(id.toString())))
@@ -249,15 +248,13 @@ class DemandeConsultationIntegrationTest {
                 .andExpect(content().string(not(containsString("Awa Diop"))));
     }
 
+    /** Le junior n'a plus aucun acces, meme a une demande qui lui avait ete indiquee a l'acceptation. */
     @Test
-    void findById_juniorNonAssigne_403() throws Exception {
-        UUID enAttente = creerDemande(utilisateurA, "P1");
+    void findById_junior_403() throws Exception {
         UUID acceptee = creerDemande(utilisateurA, "P2");
         accepter(acceptee, junior).andExpect(status().isOk());
 
-        verifierErreur(mockMvc.perform(en("MEDECIN_JUNIOR", autreJunior, get(URL + "/" + acceptee))),
-                403, "Acces refuse", MESSAGE_ROLE);
-        verifierErreur(mockMvc.perform(en("MEDECIN_JUNIOR", junior, get(URL + "/" + enAttente))),
+        verifierErreur(mockMvc.perform(en("MEDECIN_JUNIOR", junior, get(URL + "/" + acceptee))),
                 403, "Acces refuse", MESSAGE_ROLE);
     }
 
@@ -271,7 +268,7 @@ class DemandeConsultationIntegrationTest {
     @Test
     void findById_404_siAbsente() throws Exception {
         UUID inconnue = UUID.randomUUID();
-        for (String role : List.of("MEDECIN_SENIOR", "MEDECIN_JUNIOR", "UTILISATEUR")) {
+        for (String role : List.of("MEDECIN_SENIOR", "UTILISATEUR")) {
             verifierErreur(mockMvc.perform(en(role, UUID.randomUUID(), get(URL + "/" + inconnue))),
                     404, "Ressource introuvable", "Demande de consultation introuvable : " + inconnue);
         }
@@ -281,42 +278,6 @@ class DemandeConsultationIntegrationTest {
     void findById_400_siIdPasUnUuid() throws Exception {
         verifierErreur(mockMvc.perform(en("MEDECIN_SENIOR", senior, get(URL + "/pas-un-uuid"))),
                 400, "Requete invalide", "Valeur invalide pour le parametre \"id\"");
-    }
-
-    // ---------- GET /assignees-a-moi ----------
-
-    @Test
-    void assigneesAMoi_neRenvoieQueLesAccepteesAssigneesAuJunior() throws Exception {
-        UUID pourMoi1 = creerDemande(utilisateurA, "P1");
-        UUID pourMoi2 = creerDemande(utilisateurB, "P2");
-        UUID pourAutre = creerDemande(utilisateurA, "P3");
-        UUID refusee = creerDemande(utilisateurA, "P4");
-        creerDemande(utilisateurA, "P5");
-        accepter(pourMoi1, junior).andExpect(status().isOk());
-        accepter(pourMoi2, junior).andExpect(status().isOk());
-        accepter(pourAutre, autreJunior).andExpect(status().isOk());
-        refuser(refusee, "Doublon").andExpect(status().isOk());
-
-        mockMvc.perform(en("MEDECIN_JUNIOR", junior, get(URL + "/assignees-a-moi")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements", is(2)))
-                .andExpect(jsonPath("$.elements[*].id", containsInAnyOrder(pourMoi1.toString(), pourMoi2.toString())))
-                .andExpect(jsonPath("$.elements[*].statut", containsInAnyOrder("ACCEPTEE", "ACCEPTEE")));
-
-        mockMvc.perform(en("MEDECIN_JUNIOR", junior, get(URL + "/assignees-a-moi").param("taille", "1")))
-                .andExpect(jsonPath("$.elements", hasSize(1)))
-                .andExpect(jsonPath("$.totalPages", is(2)));
-
-        mockMvc.perform(en("MEDECIN_JUNIOR", UUID.randomUUID(), get(URL + "/assignees-a-moi")))
-                .andExpect(jsonPath("$.totalElements", is(0)));
-    }
-
-    @Test
-    void assigneesAMoi_403_siPasJunior() throws Exception {
-        for (String role : List.of("UTILISATEUR", "MEDECIN_SENIOR", "ADMIN")) {
-            verifierErreur(mockMvc.perform(en(role, UUID.randomUUID(), get(URL + "/assignees-a-moi"))),
-                    403, "Acces refuse", MESSAGE_ROLE);
-        }
     }
 
     // ---------- PATCH /{id}/accepter ----------
@@ -355,12 +316,22 @@ class DemandeConsultationIntegrationTest {
     }
 
     @Test
-    void accepter_400_siJuniorAbsentInvalideOuChampInconnu() throws Exception {
-        UUID id = creerDemande(utilisateurA, "P1");
+    void accepter_sansJunior_corpsVideOuAbsent() throws Exception {
+        UUID corpsVide = creerDemande(utilisateurA, "P1");
+        UUID sansCorps = creerDemande(utilisateurA, "P2");
 
-        verifierErreur(mockMvc.perform(en("MEDECIN_SENIOR", senior, json(patch(URL + "/" + id + "/accepter"), Map.of()))),
-                400, "Validation echouee", "Un ou plusieurs champs sont invalides")
-                .andExpect(jsonPath("$.details[0]", is("juniorId : l'identifiant du medecin junior est obligatoire")));
+        mockMvc.perform(en("MEDECIN_SENIOR", senior, json(patch(URL + "/" + corpsVide + "/accepter"), Map.of())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statut", is("ACCEPTEE")))
+                .andExpect(jsonPath("$.juniorId").doesNotExist());
+        mockMvc.perform(en("MEDECIN_SENIOR", senior, patch(URL + "/" + sansCorps + "/accepter")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statut", is("ACCEPTEE")));
+    }
+
+    @Test
+    void accepter_400_siJuniorInvalideOuChampInconnu() throws Exception {
+        UUID id = creerDemande(utilisateurA, "P1");
 
         verifierErreur(mockMvc.perform(en("MEDECIN_SENIOR", senior,
                         json(patch(URL + "/" + id + "/accepter"), Map.of("juniorId", "pas-un-uuid")))),
@@ -472,7 +443,6 @@ class DemandeConsultationIntegrationTest {
                 get(URL + "/mes-demandes"),
                 get(URL),
                 get(URL + "/" + id),
-                get(URL + "/assignees-a-moi"),
                 json(patch(URL + "/" + id + "/accepter"), Map.of("juniorId", junior.toString())),
                 json(patch(URL + "/" + id + "/refuser"), Map.of("motifRefus", "Hors zone")));
         for (MockHttpServletRequestBuilder requete : requetes) {

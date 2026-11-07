@@ -1,11 +1,13 @@
 package com.proxymed.integration;
 
+import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.FicheSignee;
 import com.proxymed.entity.Medecin;
 import com.proxymed.entity.Patient;
 import com.proxymed.enums.CouvertureSociale;
 import com.proxymed.enums.RoleMedecin;
 import com.proxymed.enums.Sexe;
+import com.proxymed.enums.StatutConsultation;
 import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.repository.FicheSigneeRepository;
 import com.proxymed.repository.MedecinRepository;
@@ -391,14 +393,13 @@ class FicheSigneeIntegrationTest {
                 .build()).getId();
     }
 
-    private String creerConsultation(UUID patient) throws Exception {
-        String reponse = mockMvc.perform(post("/api/consultations")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "patientId", patient,
-                                "medecinSeniorId", senior.getId()))))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(reponse).get("id").asString();
+    /** Consultation creee en base (la creation par l'API est fermee). */
+    private String creerConsultation(UUID patient) {
+        return consultationRepository.save(ConsultationInitiale.builder()
+                .patient(patientRepository.getReferenceById(patient))
+                .medecinSenior(senior)
+                .statut(StatutConsultation.BROUILLON)
+                .dateConsultation(LocalDate.now())
+                .build()).getId().toString();
     }
 }

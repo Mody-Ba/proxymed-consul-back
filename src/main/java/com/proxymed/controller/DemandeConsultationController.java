@@ -3,11 +3,8 @@ package com.proxymed.controller;
 import com.proxymed.configs.security.UtilisateurConnecte;
 import com.proxymed.enums.StatutDemandeConsultation;
 import com.proxymed.mappers.DemandeConsultationMapper;
-import com.proxymed.service.CommencementConsultationService;
 import com.proxymed.service.DemandeConsultationService;
 import com.proxymed.service.model.AcceptationDemandeRequest;
-import com.proxymed.service.model.CommencementConsultationRequest;
-import com.proxymed.service.model.CommencementConsultationResponse;
 import com.proxymed.service.model.DemandeConsultationRequest;
 import com.proxymed.service.model.DemandeConsultationResponse;
 import com.proxymed.service.model.PageResponse;
@@ -34,8 +31,8 @@ import java.util.UUID;
 
 /**
  * Demandes de consultation initiale (regles PROVISOIRES) : un UTILISATEUR (patient ou proche) cree
- * une demande, un MEDECIN_SENIOR l'accepte en l'assignant a un MEDECIN_JUNIOR, ou la refuse ; le
- * junior assigne commence ensuite la consultation initiale (Fiche 1).
+ * une demande, un MEDECIN_SENIOR l'accepte (en indiquant eventuellement un medecin junior, champ
+ * conserve sans usage depuis la suppression du flux junior) ou la refuse.
  * Seul controller de la Fiche 1 ouvert au role UTILISATEUR. L'identite de l'appelant vient
  * toujours du badge (UtilisateurConnecte), jamais du corps de la requete.
  */
@@ -48,7 +45,6 @@ public class DemandeConsultationController {
     private static final String TAILLE_DEFAUT = "20";
 
     private final DemandeConsultationService demandeConsultationService;
-    private final CommencementConsultationService commencementConsultationService;
     private final DemandeConsultationMapper demandeConsultationMapper;
 
     @ApiResponse(responseCode = "201", description = "Demande creee, EN_ATTENTE")
@@ -85,28 +81,13 @@ public class DemandeConsultationController {
     }
 
     /**
-     * Demandes ACCEPTEES assignees au medecin junior connecte.
-     */
-    @PreAuthorize("hasRole('MEDECIN_JUNIOR')")
-    @GetMapping("/assignees-a-moi")
-    public PageResponse<DemandeConsultationResponse> assigneesAMoi(
-            @AuthenticationPrincipal UtilisateurConnecte utilisateur,
-            @Parameter(description = "Numero de page, a partir de 0") @RequestParam(defaultValue = PAGE_DEFAUT) int page,
-            @Parameter(description = "Taille de page, de 1 a 100") @RequestParam(defaultValue = TAILLE_DEFAUT) int taille) {
-        return demandeConsultationMapper.toPageResponse(
-                demandeConsultationService.findAssigneesAuJunior(utilisateur.id(), page, taille));
-    }
-
-    /**
      * Le role est verifie avant la lecture (@PreAuthorize), le lien avec la demande apres
-     * (@PostAuthorize) : le senior voit tout, le junior seulement ce qui lui est assigne,
-     * l'utilisateur seulement ce qu'il a cree. Une demande absente donne 404 avant ce controle.
+     * (@PostAuthorize) : le senior voit tout, l'utilisateur seulement ce qu'il a cree. Une demande absente donne 404 avant ce controle.
      */
-    @ApiResponse(responseCode = "403", description = "Demande ni creee par l'utilisateur ni assignee au junior")
+    @ApiResponse(responseCode = "403", description = "Demande qui n'a pas ete creee par l'utilisateur")
     @ApiResponse(responseCode = "404", description = "Demande introuvable")
-    @PreAuthorize("hasAnyRole('UTILISATEUR', 'MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasAnyRole('UTILISATEUR', 'MEDECIN_SENIOR')")
     @PostAuthorize("hasRole('MEDECIN_SENIOR')"
-            + " or (hasRole('MEDECIN_JUNIOR') and returnObject.juniorId() == principal.id())"
             + " or (hasRole('UTILISATEUR') and returnObject.demandeurId() == principal.id())")
     @GetMapping("/{id}")
     public DemandeConsultationResponse findById(@PathVariable UUID id) {
@@ -118,29 +99,10 @@ public class DemandeConsultationController {
     @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PatchMapping("/{id}/accepter")
     public DemandeConsultationResponse accepter(@PathVariable UUID id,
-                                                @Valid @RequestBody AcceptationDemandeRequest request,
+                                                @Valid @RequestBody(required = false) AcceptationDemandeRequest request,
                                                 @AuthenticationPrincipal UtilisateurConnecte utilisateur) {
         return demandeConsultationMapper.toResponse(
-                demandeConsultationService.accepter(id, utilisateur.id(), request.juniorId()));
-    }
-
-    /**
-     * Le medecin junior assigne commence la consultation initiale : cree le patient et le
-     * brouillon de Fiche 1 lies a la demande. Le junior vient du badge, jamais du corps.
-     */
-    @ApiResponse(responseCode = "201", description = "Patient et consultation initiale (BROUILLON) crees et lies")
-    @ApiResponse(responseCode = "400", description = "Champ manquant ou invalide, ou medecin qui n'est pas SENIOR")
-    @ApiResponse(responseCode = "403", description = "Pas MEDECIN_JUNIOR, ou demande assignee a un autre junior")
-    @ApiResponse(responseCode = "404", description = "Demande ou medecin senior introuvable")
-    @ApiResponse(responseCode = "409", description = "Demande non ACCEPTEE, deja commencee, ou numero de dossier deja utilise")
-    @PreAuthorize("hasRole('MEDECIN_JUNIOR')")
-    @PostMapping("/{id}/commencer")
-    @ResponseStatus(HttpStatus.CREATED)
-    public CommencementConsultationResponse commencer(@PathVariable UUID id,
-                                                      @Valid @RequestBody CommencementConsultationRequest request,
-                                                      @AuthenticationPrincipal UtilisateurConnecte utilisateur) {
-        return demandeConsultationMapper.toResponse(commencementConsultationService.commencer(
-                id, utilisateur.id(), demandeConsultationMapper.toPatientModel(request), request.medecinSeniorId()));
+                demandeConsultationService.accepter(id, utilisateur.id(), request != null ? request.juniorId() : null));
     }
 
     @ApiResponse(responseCode = "404", description = "Demande introuvable")

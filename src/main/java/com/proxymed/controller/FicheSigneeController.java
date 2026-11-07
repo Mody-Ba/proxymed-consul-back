@@ -1,9 +1,7 @@
 package com.proxymed.controller;
 
-import com.proxymed.configs.security.UtilisateurConnecte;
 import com.proxymed.mappers.FicheSigneeMapper;
 import com.proxymed.mappers.ImportLotMapper;
-import com.proxymed.service.DemandeConsultationService;
 import com.proxymed.service.FicheSigneeService;
 import com.proxymed.service.ImportFichesLotService;
 import com.proxymed.service.model.ImportLotResponse;
@@ -20,7 +18,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,7 +38,6 @@ public class FicheSigneeController {
     private final FicheSigneeMapper ficheSigneeMapper;
     private final ImportFichesLotService importFichesLotService;
     private final ImportLotMapper importLotMapper;
-    private final DemandeConsultationService demandeConsultationService;
 
     /**
      * Import en lot par l'admin : un ou plusieurs PDF scannes (partie "fichiers", repetee), au plus
@@ -49,7 +45,7 @@ public class FicheSigneeController {
      * de son patient, statut EN_ATTENTE (une fiche RENVOYEE est remplacee), dans sa propre
      * transaction : un fichier refuse n'empeche pas les autres. Toujours 200 si l'envoi lui-meme est
      * valide ; le detail est dans le resultat de chaque fichier (code 201 ou code de l'erreur).
-     * Aucun controle d'assignation de junior : le junior n'importe plus. L'admin ne recoit que des
+     * L'admin ne recoit que des
      * identifiants, noms de fichier et codes, jamais le contenu d'une fiche.
      */
     @ApiResponse(responseCode = "200", description = "Un resultat par fichier (IMPORTEE ou ERREUR avec son code : "
@@ -68,27 +64,21 @@ public class FicheSigneeController {
     /**
      * Fiches signees du dossier du patient, de la plus recemment importee a la plus ancienne.
      */
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping("/patients/{patientId}/fiches-signees")
     public List<FicheSigneeResponse> findByPatient(@PathVariable UUID patientId) {
         return ficheSigneeService.findByPatient(patientId).stream().map(ficheSigneeMapper::toResponse).toList();
     }
 
     /**
-     * Un medecin junior n'obtient que la fiche d'une consultation qui lui est assignee (via la
-     * demande liee) ; le senior, et toute consultation sans demande liee, gardent l'acces d'avant.
+     * Scan signe de la consultation (medecin senior uniquement).
      */
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @ApiResponse(responseCode = "200", description = "Fiche signee de la consultation, au format PDF",
             content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE,
                     schema = @Schema(type = "string", format = "binary")))
-    @ApiResponse(responseCode = "403", description = "Consultation assignee a un autre medecin junior")
     @GetMapping(value = "/consultations/{consultationId}/fiche-signee", produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<Resource> telecharger(@PathVariable UUID consultationId,
-                                                @AuthenticationPrincipal UtilisateurConnecte utilisateur) {
-        if (utilisateur.accesLimiteAuxConsultationsAssignees()) {
-            demandeConsultationService.verifierJuniorAssigne(consultationId, utilisateur.id());
-        }
+    public ResponseEntity<Resource> telecharger(@PathVariable UUID consultationId) {
         FicheSigneeModel fiche = ficheSigneeService.telecharger(consultationId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)

@@ -2,7 +2,6 @@ package com.proxymed.service;
 
 import com.proxymed.entity.DemandeConsultation;
 import com.proxymed.enums.StatutDemandeConsultation;
-import com.proxymed.exception.ConsultationNonCommencableException;
 import com.proxymed.exception.DemandeDejaTraiteeException;
 import com.proxymed.exception.RegleGestionException;
 import com.proxymed.exception.ResourceNotFoundException;
@@ -15,7 +14,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,14 +72,6 @@ public class DemandeConsultationServiceImpl implements DemandeConsultationServic
 
     @Override
     @Transactional(readOnly = true)
-    public Page<DemandeConsultationModel> findAssigneesAuJunior(UUID juniorId, int page, int taille) {
-        return demandeConsultationRepository
-                .findByJuniorIdAndStatut(juniorId, StatutDemandeConsultation.ACCEPTEE, pagination(page, taille))
-                .map(demandeConsultationMapper::toModel);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public DemandeConsultationModel findById(UUID id) {
         return demandeConsultationMapper.toModel(getEntityById(id));
     }
@@ -106,37 +96,6 @@ public class DemandeConsultationServiceImpl implements DemandeConsultationServic
         return enregistrerDecision(demande);
     }
 
-    @Override
-    public DemandeConsultationModel lierConsultation(UUID id, UUID consultationId) {
-        DemandeConsultation demande = getEntityById(id);
-        verifierCommencable(demande);
-        demande.setConsultationId(consultationId);
-        try {
-            return demandeConsultationMapper.toModel(demandeConsultationRepository.saveAndFlush(demande));
-        } catch (OptimisticLockingFailureException e) {
-            // Deux commencements simultanes : le perdant recoit un 409 et sa transaction est annulee.
-            throw ConsultationNonCommencableException.dejaCommencee(id);
-        }
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public void verifierJuniorAssigne(UUID consultationId, UUID juniorConnecteId) {
-        demandeConsultationRepository.findByConsultationId(consultationId).ifPresent(demande -> {
-            if (!juniorConnecteId.equals(demande.getJuniorId())) {
-                throw new AccessDeniedException("Consultation assignee a un autre medecin junior");
-            }
-        });
-    }
-
-    private static void verifierCommencable(DemandeConsultation demande) {
-        if (demande.getStatut() != StatutDemandeConsultation.ACCEPTEE) {
-            throw ConsultationNonCommencableException.nonAcceptee(demande.getId());
-        }
-        if (demande.getConsultationId() != null) {
-            throw ConsultationNonCommencableException.dejaCommencee(demande.getId());
-        }
-    }
 
     /**
      * saveAndFlush : le controle de version a lieu ici, et non au commit, pour que la decision

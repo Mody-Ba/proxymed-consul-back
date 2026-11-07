@@ -19,7 +19,7 @@ public class StructureController {
     private final StructureService structureService;
     private final StructureMapper structureMapper;
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping
     public List<StructureResponse> findAll() {
         return structureMapper.toResponseList(structureService.findActives());

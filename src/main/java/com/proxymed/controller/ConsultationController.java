@@ -1,21 +1,18 @@
 package com.proxymed.controller;
 
-import com.proxymed.configs.security.UtilisateurConnecte;
 import com.proxymed.enums.DecisionEligibilite;
 import com.proxymed.enums.StatutConsultation;
+import com.proxymed.exception.ErrorResponse;
 import com.proxymed.mappers.ConsultationMapper;
-import com.proxymed.service.model.ConsultationCreateRequest;
 import com.proxymed.service.model.ConsultationResponse;
 import com.proxymed.service.model.ConsultationSummaryResponse;
 import com.proxymed.service.model.ConsultationUpdateRequest;
 import com.proxymed.service.ConsultationService;
-import com.proxymed.service.DemandeConsultationService;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -23,7 +20,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,7 +30,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,13 +40,19 @@ public class ConsultationController {
 
     private final ConsultationService consultationService;
     private final ConsultationMapper consultationMapper;
-    private final DemandeConsultationService demandeConsultationService;
+
+    /**
+     * La creation directe d'une consultation est fermee : la visite (fiche) est creee a l'impression
+     * par l'admin, puis importee et visee par un senior. Le corps eventuel de la requete est ignore.
+     */
+    static final String MESSAGE_CREATION_FERMEE = "La creation directe d'une consultation n'est plus possible : "
+            + "la visite est creee par l'admin a l'impression de la fiche (POST /api/visites/impression)";
 
     /**
      * Recherche/liste du DMI (section 5.3/5.4). medecinJuniorAffecteId sert aussi
      * a lister les patients affectes a un medecin junior donne.
      */
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping
     public List<ConsultationSummaryResponse> rechercher(
             @RequestParam(required = false) String nomPatient,
@@ -71,47 +72,28 @@ public class ConsultationController {
     /**
      * Fiches validees en attente de signature du point focal DASS (section 5.4).
      */
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping("/en-attente-dass")
     public List<ConsultationSummaryResponse> enAttenteValidationDass() {
         return consultationService.fichesEnAttenteValidationDass()
                 .stream().map(consultationMapper::toSummaryResponse).toList();
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping("/{id}")
     public ConsultationResponse findById(@PathVariable UUID id) {
         return consultationMapper.toResponse(consultationService.findById(id));
     }
 
     /**
-     * PDF de la Fiche 1 (section 5.2), avec QR code encodant l'UUID de la consultation.
+     * PDF de la Fiche 1 (section 5.2), avec QR code.
      */
-
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
-    @GetMapping("/download-pdf")
-    public ResponseEntity<Resource> getPdfFile() throws IOException {
-         Resource pdfFile = new ClassPathResource("sample.pdf");
-         return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_PDF)
-                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + pdfFile.getFilename() + "\"")
-                 .body(pdfFile);
-    }
-    /**
-     * Un medecin junior n'obtient que le PDF d'une consultation qui lui est assignee (via la demande
-     * liee) ; le senior, et toute consultation sans demande liee, gardent l'acces d'avant.
-     */
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @ApiResponse(responseCode = "200", description = "Fiche de consultation au format PDF",
             content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE,
                     schema = @Schema(type = "string", format = "binary")))
-    @ApiResponse(responseCode = "403", description = "Consultation assignee a un autre medecin junior")
     @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<Resource> telechargerPdf(@PathVariable UUID id,
-                                                   @AuthenticationPrincipal UtilisateurConnecte utilisateur) {
-        if (utilisateur.accesLimiteAuxConsultationsAssignees()) {
-            demandeConsultationService.verifierJuniorAssigne(id, utilisateur.id());
-        }
+    public ResponseEntity<Resource> telechargerPdf(@PathVariable UUID id) {
         Resource pdf = consultationService.genererPdf(id);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
@@ -120,26 +102,29 @@ public class ConsultationController {
                 .body(pdf);
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
+    @ApiResponse(responseCode = "409", description = "Creation directe fermee : une consultation part d'une visite "
+            + "creee a l'impression par l'admin")
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public ConsultationResponse creer(@Valid @RequestBody ConsultationCreateRequest request) {
-        return consultationMapper.toResponse(consultationService.creerBrouillon(consultationMapper.toModel(request)));
+    public ResponseEntity<ErrorResponse> creer() {
+        return ResponseEntity.status(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorResponse(HttpStatus.CONFLICT.value(), "Creation de consultation fermee",
+                        MESSAGE_CREATION_FERMEE));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PutMapping("/{id}")
     public ConsultationResponse mettreAJour(@PathVariable UUID id, @Valid @RequestBody ConsultationUpdateRequest request) {
         return consultationMapper.toResponse(consultationService.mettreAJour(id, consultationMapper.toModel(request)));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PostMapping("/{id}/valider")
     public ConsultationResponse valider(@PathVariable UUID id) {
         return consultationMapper.toResponse(consultationService.valider(id));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PostMapping("/{id}/signer")
     public ConsultationResponse signer(@PathVariable UUID id) {
         return consultationMapper.toResponse(consultationService.signer(id));

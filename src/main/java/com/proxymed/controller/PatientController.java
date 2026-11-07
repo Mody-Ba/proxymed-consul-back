@@ -28,26 +28,26 @@ public class PatientController {
     private final PatientService patientService;
     private final PatientMapper patientMapper;
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasAnyRole('MEDECIN_SENIOR', 'ADMIN')")
     @GetMapping
     public List<PatientResponse> findAll() {
         return patientService.findAll().stream().map(patientMapper::toResponse).toList();
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasAnyRole('MEDECIN_SENIOR', 'ADMIN')")
     @GetMapping("/{id}")
     public PatientResponse findById(@PathVariable UUID id) {
         return patientMapper.toResponse(patientService.findById(id));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasAnyRole('MEDECIN_SENIOR', 'ADMIN')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public PatientResponse create(@Valid @RequestBody PatientRequest request) {
         return patientMapper.toResponse(patientService.create(patientMapper.toModel(request)));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasAnyRole('MEDECIN_SENIOR', 'ADMIN')")
     @PutMapping("/{id}")
     public PatientResponse update(@PathVariable UUID id, @Valid @RequestBody PatientRequest request) {
         return patientMapper.toResponse(patientService.update(id, patientMapper.toModel(request)));

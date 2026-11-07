@@ -20,7 +20,7 @@ import java.util.List;
 
 /**
  * Mapper DB : convertit uniquement entre ConsultationModel et l'entite JPA ConsultationInitiale.
- * Ne doit jamais connaitre ConsultationCreateRequest/UpdateRequest/Response.
+ * Ne doit jamais connaitre ConsultationUpdateRequest/Response.
  *
  * Resout lui-meme les references JPA vers les autres aggregats (patient, medecins, facteurs
  * de risque, situation sociale) via getReferenceById sur leurs repositories respectifs :
