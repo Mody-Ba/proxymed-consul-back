@@ -11,6 +11,7 @@ import com.proxymed.repository.FicheSigneeRepository;
 import com.proxymed.repository.MedecinRepository;
 import com.proxymed.repository.PatientRepository;
 import com.proxymed.support.BadgeMedecinParDefaut;
+import com.proxymed.support.FabriqueBadge;
 import com.proxymed.support.PdfDeTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -46,8 +48,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Import sans id (POST /api/fiches-signees/import) : la consultation est retrouvee grace au QR
- * code du PDF scanne. Telechargement par consultation et liste du dossier patient.
+ * Import sans id (POST /api/fiches-signees/import, par l'admin) : la consultation est retrouvee grace
+ * au QR code du PDF scanne ; un fichier par requete ici (le lot est teste dans ImportFichesLotIntegrationTest). Telechargement par consultation et liste du dossier patient.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -73,6 +75,8 @@ class FicheSigneeIntegrationTest {
     private FicheSigneeRepository ficheSigneeRepository;
     @Autowired
     private EntityManager entityManager;
+    @Autowired
+    private FabriqueBadge fabriqueBadge;
 
     private Medecin senior;
     private UUID patientId;
@@ -96,17 +100,15 @@ class FicheSigneeIntegrationTest {
         byte[] scan = PdfDeTest.numeriser(pdfGenere, 200);
 
         String reponse = importer(new MockMultipartFile("fichier", "scan-0001.pdf", "application/pdf", scan))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id", notNullValue()))
-                .andExpect(jsonPath("$.patientId", is(patientId.toString())))
-                .andExpect(jsonPath("$.consultationId", is(deuxieme)))
-                .andExpect(jsonPath("$.nomFichier", is("scan-0001.pdf")))
-                .andExpect(jsonPath("$.tailleOctets", is(scan.length)))
-                .andExpect(jsonPath("$.dateImport", notNullValue()))
+                .andExpect(jsonPath("$.resultats[0].code", is(201)))
+                .andExpect(jsonPath("$.resultats[0].ficheId", notNullValue()))
+                .andExpect(jsonPath("$.resultats[0].patientId", is(patientId.toString())))
+                .andExpect(jsonPath("$.resultats[0].consultationId", is(deuxieme)))
+                .andExpect(jsonPath("$.resultats[0].nomFichier", is("scan-0001.pdf")))
                 // Metadonnees seulement : jamais le contenu du fichier dans le JSON.
-                .andExpect(jsonPath("$.contenu").doesNotExist())
+                .andExpect(jsonPath("$.resultats[0].contenu").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
-        UUID ficheId = UUID.fromString(objectMapper.readTree(reponse).get("id").asString());
+        UUID ficheId = UUID.fromString(objectMapper.readTree(reponse).get("resultats").get(0).get("ficheId").asString());
 
         entityManager.flush();
         entityManager.clear();
@@ -134,8 +136,8 @@ class FicheSigneeIntegrationTest {
         byte[] pdf = PdfDeTest.pdfAvecQr(null, null, qr(TYPE, patientId, consultationId));
 
         importer(new MockMultipartFile("fichier", "fiche.pdf", "application/pdf", pdf))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.consultationId", is(consultationId)));
+                .andExpect(jsonPath("$.resultats[0].code", is(201)))
+                .andExpect(jsonPath("$.resultats[0].consultationId", is(consultationId)));
     }
 
     @Test
@@ -144,11 +146,11 @@ class FicheSigneeIntegrationTest {
         byte[] second = PdfDeTest.pdfAvecQr(qr(TYPE, patientId, consultationId), null);
 
         importer(new MockMultipartFile("fichier", "premier.pdf", "application/pdf", premier))
-                .andExpect(status().isCreated());
+                .andExpect(jsonPath("$.resultats[0].code", is(201)));
         importer(new MockMultipartFile("fichier", "second.pdf", "application/pdf", second))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.erreur", is("Fiche signee deja importee")))
-                .andExpect(jsonPath("$.message", containsString("Une fiche signee existe deja pour cette consultation")));
+                .andExpect(jsonPath("$.resultats[0].code", is(409)))
+                .andExpect(jsonPath("$.resultats[0].erreur", is("Fiche signee deja importee")))
+                .andExpect(jsonPath("$.resultats[0].message", containsString("Une fiche signee existe deja pour cette consultation")));
 
         mockMvc.perform(get("/api/consultations/" + consultationId + "/fiche-signee"))
                 .andExpect(status().isOk())
@@ -163,10 +165,10 @@ class FicheSigneeIntegrationTest {
         MockMultipartFile fichier = new MockMultipartFile("fichier", "fiche.pdf", "application/pdf",
                 PdfDeTest.pdfAvecQr(qr(TYPE, patientId, consultationId)));
 
-        importer(fichier).andExpect(status().isCreated());
+        importer(fichier).andExpect(jsonPath("$.resultats[0].code", is(201)));
         importer(fichier)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message", containsString("Une fiche signee existe deja pour cette consultation")));
+                .andExpect(jsonPath("$.resultats[0].code", is(409)))
+                .andExpect(jsonPath("$.resultats[0].message", containsString("Une fiche signee existe deja pour cette consultation")));
 
         mockMvc.perform(get("/api/patients/" + patientId + "/fiches-signees"))
                 .andExpect(jsonPath("$", hasSize(1)));
@@ -221,9 +223,9 @@ class FicheSigneeIntegrationTest {
     @Test
     void import_sansQrCode_renvoie422() throws Exception {
         importer(new MockMultipartFile("fichier", "fiche.pdf", "application/pdf", PDF_SANS_QR))
-                .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.erreur", is("Code QR introuvable")))
-                .andExpect(jsonPath("$.message", containsString("Aucun code QR n'a ete trouve dans le PDF importe")));
+                .andExpect(jsonPath("$.resultats[0].code", is(422)))
+                .andExpect(jsonPath("$.resultats[0].erreur", is("Code QR introuvable")))
+                .andExpect(jsonPath("$.resultats[0].message", containsString("Aucun code QR n'a ete trouve dans le PDF importe")));
 
         assertThat(ficheSigneeRepository.findAll()).isEmpty();
     }
@@ -232,8 +234,8 @@ class FicheSigneeIntegrationTest {
     void import_qrQuiNEstPasProxymed_renvoie400() throws Exception {
         for (String texte : new String[]{"https://exemple.com", "{\"type\":\"" + TYPE + "\"}"}) {
             importer(new MockMultipartFile("fichier", "fiche.pdf", "application/pdf", PdfDeTest.pdfAvecQr(texte)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message", is("Le code QR detecte n'est pas un code QR PROXYMED")));
+                    .andExpect(jsonPath("$.resultats[0].code", is(400)))
+                    .andExpect(jsonPath("$.resultats[0].message", is("Le code QR detecte n'est pas un code QR PROXYMED")));
         }
         assertThat(ficheSigneeRepository.findAll()).isEmpty();
     }
@@ -242,9 +244,9 @@ class FicheSigneeIntegrationTest {
     void import_ancienPdf_qrAvecSeulementLIdDeLaConsultation_renvoie400() throws Exception {
         importer(new MockMultipartFile("fichier", "ancienne-fiche.pdf", "application/pdf",
                 PdfDeTest.pdfAvecQr(consultationId)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("ancienne fiche")))
-                .andExpect(jsonPath("$.message", containsString("regenerez le PDF")));
+                .andExpect(jsonPath("$.resultats[0].code", is(400)))
+                .andExpect(jsonPath("$.resultats[0].message", containsString("ancienne fiche")))
+                .andExpect(jsonPath("$.resultats[0].message", containsString("regenerez le PDF")));
         assertThat(ficheSigneeRepository.findAll()).isEmpty();
     }
 
@@ -253,8 +255,8 @@ class FicheSigneeIntegrationTest {
         byte[] pdf = PdfDeTest.pdfAvecQr(qr("FICHE_2_SUIVI", patientId, consultationId));
 
         importer(new MockMultipartFile("fichier", "fiche.pdf", "application/pdf", pdf))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("Type de fiche non pris en charge : FICHE_2_SUIVI")));
+                .andExpect(jsonPath("$.resultats[0].code", is(400)))
+                .andExpect(jsonPath("$.resultats[0].message", containsString("Type de fiche non pris en charge : FICHE_2_SUIVI")));
         assertThat(ficheSigneeRepository.findAll()).isEmpty();
     }
 
@@ -262,12 +264,12 @@ class FicheSigneeIntegrationTest {
     void import_patientOuConsultationInconnus_renvoie404() throws Exception {
         importer(new MockMultipartFile("fichier", "fiche.pdf", "application/pdf",
                 PdfDeTest.pdfAvecQr(qr(TYPE, UUID.randomUUID(), consultationId))))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message", containsString("Patient introuvable")));
+                .andExpect(jsonPath("$.resultats[0].code", is(404)))
+                .andExpect(jsonPath("$.resultats[0].message", containsString("Patient introuvable")));
         importer(new MockMultipartFile("fichier", "fiche.pdf", "application/pdf",
                 PdfDeTest.pdfAvecQr(qr(TYPE, patientId, UUID.randomUUID().toString()))))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message", containsString("Consultation introuvable")));
+                .andExpect(jsonPath("$.resultats[0].code", is(404)))
+                .andExpect(jsonPath("$.resultats[0].message", containsString("Consultation introuvable")));
         assertThat(ficheSigneeRepository.findAll()).isEmpty();
     }
 
@@ -277,8 +279,8 @@ class FicheSigneeIntegrationTest {
         byte[] pdf = PdfDeTest.pdfAvecQr(qr(TYPE, autrePatient, consultationId));
 
         importer(new MockMultipartFile("fichier", "fiche.pdf", "application/pdf", pdf))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("ne correspond pas au patient de la consultation")));
+                .andExpect(jsonPath("$.resultats[0].code", is(400)))
+                .andExpect(jsonPath("$.resultats[0].message", containsString("ne correspond pas au patient de la consultation")));
         assertThat(ficheSigneeRepository.findAll()).isEmpty();
     }
 
@@ -291,8 +293,8 @@ class FicheSigneeIntegrationTest {
         // Un PDF endommage reste un PDF : 400, et non 415.
         importer(new MockMultipartFile("fichier", "tronque.pdf", "application/pdf",
                 "%PDF-1.7\nfiche tronquee".getBytes(StandardCharsets.US_ASCII)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Le fichier PDF est illisible ou endommage")));
+                .andExpect(jsonPath("$.resultats[0].code", is(400)))
+                .andExpect(jsonPath("$.resultats[0].message", is("Le fichier PDF est illisible ou endommage")));
 
         assertThat(ficheSigneeRepository.count()).isZero();
     }
@@ -308,26 +310,23 @@ class FicheSigneeIntegrationTest {
         assertThat(ficheSigneeRepository.count()).isZero();
     }
 
-    /** Controle du service (MockMvc ne passe pas par la limite du serveur, testee a part en HTTP). */
+    /** Limite de 10 Mo par fichier, verifiee par le service (la limite de l'envoi entier est testee en HTTP). */
     @Test
     void import_rejetteUnFichierDePlusDe10Mo_en413() throws Exception {
         byte[] gros = new byte[10 * 1024 * 1024 + 1];
         System.arraycopy(PDF_SANS_QR, 0, gros, 0, PDF_SANS_QR.length);
 
         importer(new MockMultipartFile("fichier", "gros.pdf", "application/pdf", gros))
-                .andExpect(status().isContentTooLarge())
                 .andExpect(content().contentTypeCompatibleWith("application/json"))
-                .andExpect(jsonPath("$.status", is(413)))
-                .andExpect(jsonPath("$.erreur", is("Fichier trop volumineux")))
-                .andExpect(jsonPath("$.message", is("Le fichier importe depasse la taille maximale de 10 Mo")))
-                .andExpect(jsonPath("$.horodatage", notNullValue()))
-                .andExpect(jsonPath("$.details", hasSize(0)));
+                .andExpect(jsonPath("$.resultats[0].code", is(413)))
+                .andExpect(jsonPath("$.resultats[0].erreur", is("Fichier trop volumineux")))
+                .andExpect(jsonPath("$.resultats[0].message", is("Le fichier importe depasse la taille maximale de 10 Mo")));
         assertThat(ficheSigneeRepository.count()).isZero();
     }
 
     @Test
     void import_sansFichier_renvoie400() throws Exception {
-        mockMvc.perform(multipart(URL_IMPORT))
+        mockMvc.perform(multipart(URL_IMPORT).header(HttpHeaders.AUTHORIZATION, fabriqueBadge.bearer("ADMIN")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", containsString("fichier")));
     }
@@ -345,17 +344,26 @@ class FicheSigneeIntegrationTest {
     }
 
     private static void verifierNonPdf(ResultActions resultat) throws Exception {
-        resultat.andExpect(status().isUnsupportedMediaType())
+        resultat.andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("application/json"))
-                .andExpect(jsonPath("$.status", is(415)))
-                .andExpect(jsonPath("$.erreur", is("Format de fichier non supporte")))
-                .andExpect(jsonPath("$.message", is("Le fichier importe doit etre un PDF")))
-                .andExpect(jsonPath("$.horodatage", notNullValue()))
-                .andExpect(jsonPath("$.details", hasSize(0)));
+                .andExpect(jsonPath("$.resultats[0].resultat", is("ERREUR")))
+                .andExpect(jsonPath("$.resultats[0].code", is(415)))
+                .andExpect(jsonPath("$.resultats[0].erreur", is("Format de fichier non supporte")))
+                .andExpect(jsonPath("$.resultats[0].message", is("Le fichier importe doit etre un PDF")));
     }
 
+    /**
+     * Import d'un seul fichier, par l'admin (seul role autorise), via l'import en lot : le resultat
+     * du fichier est dans $.resultats[0] (code 201 ou code de l'erreur), la requete elle-meme en 200.
+     * La partie "fichier" des appelants est renommee "fichiers", nom attendu par l'endpoint.
+     */
     private ResultActions importer(MockMultipartFile fichier) throws Exception {
-        return mockMvc.perform(multipart(URL_IMPORT).file(fichier));
+        MockMultipartFile partie = new MockMultipartFile("fichiers", fichier.getOriginalFilename(),
+                fichier.getContentType(), fichier.getBytes());
+        return mockMvc.perform(multipart(URL_IMPORT).file(partie)
+                        .header(HttpHeaders.AUTHORIZATION, fabriqueBadge.bearer("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombreFichiers", is(1)));
     }
 
     /**

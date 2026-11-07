@@ -14,6 +14,7 @@ import java.util.UUID;
  * contenu est null dans les listes du dossier patient (metadonnees seulement).
  * Une seule fiche par consultation (contrainte uk_fiche_signee_consultation).
  * statut et champs du visa : null a l'import (la fiche part EN_ATTENTE, valeur par defaut de l'entite).
+ * reimportee : vrai seulement en retour d'un import qui a remplace le scan d'une fiche RENVOYEE.
  */
 @Builder(toBuilder = true)
 public record FicheSigneeModel(
@@ -30,6 +31,7 @@ public record FicheSigneeModel(
         UUID seniorVisaId,
         String nomSeniorVisa,
         Instant dateVisa,
-        String motifRenvoi
+        String motifRenvoi,
+        boolean reimportee
 ) {
 }

@@ -2,8 +2,11 @@ package com.proxymed.controller;
 
 import com.proxymed.configs.security.UtilisateurConnecte;
 import com.proxymed.mappers.FicheSigneeMapper;
+import com.proxymed.mappers.ImportLotMapper;
 import com.proxymed.service.DemandeConsultationService;
 import com.proxymed.service.FicheSigneeService;
+import com.proxymed.service.ImportFichesLotService;
+import com.proxymed.service.model.ImportLotResponse;
 import com.proxymed.service.model.FicheSigneeResponse;
 import com.proxymed.service.model.FicheSigneeModel;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,7 +17,6 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,7 +26,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -38,30 +39,30 @@ public class FicheSigneeController {
 
     private final FicheSigneeService ficheSigneeService;
     private final FicheSigneeMapper ficheSigneeMapper;
+    private final ImportFichesLotService importFichesLotService;
+    private final ImportLotMapper importLotMapper;
     private final DemandeConsultationService demandeConsultationService;
 
     /**
-     * Importe la fiche remplie, signee et scannee (PDF, 10 Mo au maximum), sans aucun id : le
-     * patient et la consultation sont lus dans le QR code de la fiche. La reponse indique ou elle a ete rangee.
-     * Un medecin junior ne peut importer que la fiche d'une consultation qui lui est assignee.
+     * Import en lot par l'admin : un ou plusieurs PDF scannes (partie "fichiers", repetee), au plus
+     * 20 par envoi, 10 Mo par fichier. Chaque fichier est range d'apres son QR code dans la visite
+     * de son patient, statut EN_ATTENTE (une fiche RENVOYEE est remplacee), dans sa propre
+     * transaction : un fichier refuse n'empeche pas les autres. Toujours 200 si l'envoi lui-meme est
+     * valide ; le detail est dans le resultat de chaque fichier (code 201 ou code de l'erreur).
+     * Aucun controle d'assignation de junior : le junior n'importe plus. L'admin ne recoit que des
+     * identifiants, noms de fichier et codes, jamais le contenu d'une fiche.
      */
-    @ApiResponse(responseCode = "201", description = "Fiche rangee dans le dossier du patient")
-    @ApiResponse(responseCode = "400", description = "PDF illisible ; QR non PROXYMED, d'ancien format ou d'un autre "
-            + "type de fiche ; patient du QR different de celui de la consultation")
-    @ApiResponse(responseCode = "403", description = "Consultation du QR assignee a un autre medecin junior")
-    @ApiResponse(responseCode = "404", description = "Patient ou consultation du QR code introuvable")
-    @ApiResponse(responseCode = "409", description = "La consultation a deja une fiche signee")
-    @ApiResponse(responseCode = "413", description = "Fichier de plus de 10 Mo")
-    @ApiResponse(responseCode = "415", description = "Fichier qui n'est pas un PDF")
-    @ApiResponse(responseCode = "422", description = "Aucun code QR trouve dans le PDF")
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @ApiResponse(responseCode = "200", description = "Un resultat par fichier (IMPORTEE ou ERREUR avec son code : "
+            + "400 QR non PROXYMED ou PDF illisible, 404 visite ou patient introuvable, 409 fiche deja importee, "
+            + "413 fichier de plus de 10 Mo, 415 fichier non PDF, 422 aucun QR code)")
+    @ApiResponse(responseCode = "400", description = "Aucun fichier, ou plus de " + ImportFichesLotService.MAX_FICHIERS
+            + " fichiers (rien n'est importe)")
+    @ApiResponse(responseCode = "403", description = "Reserve a l'admin")
+    @ApiResponse(responseCode = "413", description = "Envoi de plus de 100 Mo au total (rien n'est importe)")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping(value = "/fiches-signees/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @ResponseStatus(HttpStatus.CREATED)
-    public FicheSigneeResponse importer(@RequestPart("fichier") MultipartFile fichier,
-                                        @AuthenticationPrincipal UtilisateurConnecte utilisateur) {
-        UUID juniorAControlerId = utilisateur.accesLimiteAuxConsultationsAssignees() ? utilisateur.id() : null;
-        return ficheSigneeMapper.toResponse(
-                ficheSigneeService.importer(ficheSigneeMapper.toModel(fichier), juniorAControlerId));
+    public ImportLotResponse importer(@RequestPart("fichiers") List<MultipartFile> fichiers) {
+        return importLotMapper.toResponse(importFichesLotService.importer(importLotMapper.toModels(fichiers)));
     }
 
     /**

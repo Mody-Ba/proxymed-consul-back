@@ -6,6 +6,7 @@ import com.google.zxing.Result;
 import com.google.zxing.ResultPoint;
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
 import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.multi.qrcode.QRCodeMultiReader;
 import com.google.zxing.qrcode.QRCodeReader;
 import com.google.zxing.qrcode.detector.FinderPattern;
 import com.proxymed.enums.CouvertureSociale;
@@ -132,9 +133,16 @@ class PdfGenerationServiceTest {
         }
         ImageIO.write(page, "png", Path.of("target", "fiche-consultation-page1-200dpi.png").toFile());
 
-        Result resultat = new QRCodeReader().decode(
+        // Lecteur multiple, comme DetecteurQrPdf a l'import : sur une page entiere, le lecteur simple
+        // (QRCodeReader) se trompe de motifs de reperage pour environ 9 % des contenus de QR (les UUID
+        // de ficheComplete sont aleatoires) et echoue alors en FormatException ou ChecksumException,
+        // toujours pour le meme contenu. Le lecteur multiple, qui evalue toutes les combinaisons de
+        // motifs, lit ces memes pages (0 echec sur 1 000 contenus).
+        Result[] resultats = new QRCodeMultiReader().decodeMultiple(
                 new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(page))),
                 Map.of(DecodeHintType.TRY_HARDER, Boolean.TRUE));
+        assertThat(resultats).hasSize(1);
+        Result resultat = resultats[0];
         assertThat(resultat.getText()).contains(consultation.id().toString());
         assertThat(tailleSymboleQrPx(resultat)).isGreaterThanOrEqualTo(280);
     }

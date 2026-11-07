@@ -1,6 +1,7 @@
 package com.proxymed.service;
 
 import com.proxymed.entity.FicheSignee;
+import com.proxymed.enums.StatutFicheSignee;
 import com.proxymed.exception.FicheSigneeExistanteException;
 import com.proxymed.exception.FichierNonPdfException;
 import com.proxymed.exception.FichierTropVolumineuxException;
@@ -14,6 +15,7 @@ import com.proxymed.service.model.ContenuQrModel;
 import com.proxymed.service.model.FicheSigneeModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -29,8 +32,10 @@ import java.util.UUID;
  * verification qu'elle existe passe par ConsultationService.findById, et le rattachement
  * JPA (id -> reference) est delegue au mapper DB.
  * A l'import, aucun id n'est fourni : la consultation est lue dans le QR code du PDF scanne
- * (DetecteurQrPdf puis LecteurContenuQr), puis recoupee avec le patient du QR. Pour un medecin
- * junior, l'assignation a la consultation est verifiee par DemandeConsultationService.
+ * (DetecteurQrPdf puis LecteurContenuQr), puis recoupee avec le patient du QR. L'import est
+ * reserve a l'admin (controller) : aucun controle d'assignation de junior ici.
+ * Une fiche RENVOYEE est remplacee par le nouveau scan (meme ligne, de nouveau EN_ATTENTE) ; une
+ * fiche EN_ATTENTE ou VISEE refuse tout nouvel import (409).
  */
 @Service
 @RequiredArgsConstructor
@@ -45,14 +50,14 @@ public class FicheSigneeServiceImpl implements FicheSigneeService {
     private final FicheSigneeRepository ficheSigneeRepository;
     private final ConsultationService consultationService;
     private final PatientService patientService;
-    private final DemandeConsultationService demandeConsultationService;
     private final FicheSigneeMapper ficheSigneeMapper;
     private final DetecteurQrPdf detecteurQrPdf;
     private final LecteurContenuQr lecteurContenuQr;
 
     @Override
-    public FicheSigneeModel importer(FicheSigneeModel model, UUID juniorAControlerId) {
-        if (model.contenu() != null && model.contenu().length > TAILLE_MAX_OCTETS) {
+    public FicheSigneeModel importer(FicheSigneeModel model) {
+        if (model.tailleOctets() > TAILLE_MAX_OCTETS
+                || (model.contenu() != null && model.contenu().length > TAILLE_MAX_OCTETS)) {
             throw new FichierTropVolumineuxException();
         }
         if (!estPdf(model)) {
@@ -61,20 +66,19 @@ public class FicheSigneeServiceImpl implements FicheSigneeService {
         ContenuQrModel qr = lireQrCode(model.contenu());
         patientService.findById(qr.patientId());
         ConsultationModel consultation = consultationService.findById(qr.consultationId());
-        // Avant tout autre controle sur la consultation : un autre junior n'apprend rien de plus
-        // (ni le patient, ni l'existence d'une fiche deja importee).
-        if (juniorAControlerId != null) {
-            demandeConsultationService.verifierJuniorAssigne(consultation.id(), juniorAControlerId);
-        }
         if (!qr.patientId().equals(consultation.patient().id())) {
             throw new RegleGestionException("Le patient du code QR (" + qr.patientId()
                     + ") ne correspond pas au patient de la consultation " + qr.consultationId());
         }
         UUID consultationId = consultation.id();
-        if (ficheSigneeRepository.existsByConsultation_Id(consultationId)) {
+        Optional<StatutFicheSignee> statutExistant = ficheSigneeRepository.findStatutByConsultationId(consultationId);
+        if (statutExistant.isPresent() && statutExistant.get() != StatutFicheSignee.RENVOYEE) {
             throw new FicheSigneeExistanteException(MESSAGE_FICHE_EXISTANTE + " : " + consultationId);
         }
         FicheSigneeModel aEnregistrer = model.toBuilder().dateImport(Instant.now()).build();
+        if (statutExistant.isPresent()) {
+            return reimporter(consultationId, aEnregistrer);
+        }
         try {
             // saveAndFlush : la contrainte d'unicite est verifiee ici, et non au commit, pour que
             // l'import simultane perdant recoive lui aussi un 409.
@@ -82,6 +86,22 @@ public class FicheSigneeServiceImpl implements FicheSigneeService {
             return ficheSigneeMapper.toModel(entity);
         } catch (DataIntegrityViolationException e) {
             // Seule contrainte possible ici : uk_fiche_signee_consultation (la consultation existe, verifiee plus haut).
+            throw new FicheSigneeExistanteException(MESSAGE_FICHE_EXISTANTE + " : " + consultationId);
+        }
+    }
+
+    /**
+     * Fiche RENVOYEE : le nouveau scan remplace l'ancien sur la meme ligne, qui redevient EN_ATTENTE.
+     * Le motif du dernier renvoi est conserve (le senior voit pourquoi la fiche lui revient).
+     * Le verrou optimiste (version) fait perdre en 409 le second de deux reimports simultanes.
+     */
+    private FicheSigneeModel reimporter(UUID consultationId, FicheSigneeModel aEnregistrer) {
+        FicheSignee fiche = ficheSigneeRepository.findByConsultation_Id(consultationId)
+                .orElseThrow(() -> new FicheSigneeExistanteException(MESSAGE_FICHE_EXISTANTE + " : " + consultationId));
+        ficheSigneeMapper.remplacerScan(fiche, aEnregistrer);
+        try {
+            return ficheSigneeMapper.toModel(ficheSigneeRepository.saveAndFlush(fiche)).toBuilder().reimportee(true).build();
+        } catch (ObjectOptimisticLockingFailureException e) {
             throw new FicheSigneeExistanteException(MESSAGE_FICHE_EXISTANTE + " : " + consultationId);
         }
     }
