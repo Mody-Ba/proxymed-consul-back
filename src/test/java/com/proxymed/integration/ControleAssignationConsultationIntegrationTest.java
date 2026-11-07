@@ -49,10 +49,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Controle d'assignation sur le PDF de la Fiche 1, l'import de la fiche signee et le
- * telechargement du scan : un MEDECIN_JUNIOR n'accede qu'aux consultations liees a une demande
- * qui lui est assignee (compte lu dans le badge). Le senior garde l'acces a tout ; une consultation
- * sans demande liee reste accessible comme avant a tout medecin junior ou senior.
+ * Controle d'assignation sur le PDF de la Fiche 1 et le telechargement du scan : un MEDECIN_JUNIOR
+ * n'accede qu'aux consultations liees a une demande qui lui est assignee (compte lu dans le badge).
+ * Le senior garde l'acces a tout ; une consultation sans demande liee reste accessible comme avant
+ * a tout medecin junior ou senior. L'import n'est plus concerne : il est reserve a l'admin (aucun
+ * medecin, assigne ou non, ne peut importer), les fiches sont donc enregistrees directement ici.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -107,15 +108,12 @@ class ControleAssignationConsultationIntegrationTest {
     // ---------- Junior assigne ----------
 
     @Test
-    void juniorAssigne_accedeAuxTroisEndpoints(CapturedOutput sortie) throws Exception {
+    void juniorAssigne_accedeAuPdfEtALaFicheSignee(CapturedOutput sortie) throws Exception {
         pdf("MEDECIN_JUNIOR", juniorAssigne, consultationAssignee)
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("application/pdf"));
 
-        byte[] fiche = ficheAvecQr(consultationAssignee);
-        importer("MEDECIN_JUNIOR", juniorAssigne, fiche)
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.consultationId", is(consultationAssignee)));
+        byte[] fiche = enregistrerFiche(consultationAssignee);
 
         ficheSignee("MEDECIN_JUNIOR", juniorAssigne, consultationAssignee)
                 .andExpect(status().isOk())
@@ -132,20 +130,14 @@ class ControleAssignationConsultationIntegrationTest {
         verifierRefus(pdf("MEDECIN_JUNIOR", autreJunior, consultationAssignee));
     }
 
+    /** L'import est reserve a l'admin : refuse par le role, meme au junior assigne, rien n'est enregistre. */
     @Test
-    void autreJunior_403_aLImport_etRienNestEnregistre(CapturedOutput sortie) throws Exception {
+    void import_403_pourToutJunior_memeAssigne_etRienNestEnregistre(CapturedOutput sortie) throws Exception {
+        verifierRefus(importer("MEDECIN_JUNIOR", juniorAssigne, ficheAvecQr(consultationAssignee)));
         verifierRefus(importer("MEDECIN_JUNIOR", autreJunior, ficheAvecQr(consultationAssignee)));
 
         assertThat(ficheSigneeRepository.existsByConsultation_Id(UUID.fromString(consultationAssignee))).isFalse();
         assertThat(sortie.getAll()).doesNotContain(NOM_PATIENT);
-    }
-
-    /** Le refus passe avant le 409 : un autre junior n'apprend pas qu'une fiche existe deja. */
-    @Test
-    void autreJunior_403_aLImport_memeSiUneFicheExisteDeja() throws Exception {
-        enregistrerFiche(consultationAssignee);
-
-        verifierRefus(importer("MEDECIN_JUNIOR", autreJunior, ficheAvecQr(consultationAssignee)));
     }
 
     @Test
@@ -164,11 +156,11 @@ class ControleAssignationConsultationIntegrationTest {
     // ---------- Senior : comme avant ----------
 
     @Test
-    void senior_accedeAuxTroisEndpoints_sansEtreLeJuniorAssigne() throws Exception {
+    void senior_accedeAuPdfEtALaFicheSignee_sansEtreLeJuniorAssigne_maisNImportePlus() throws Exception {
         pdf("MEDECIN_SENIOR", senior, consultationAssignee).andExpect(status().isOk());
 
-        byte[] fiche = ficheAvecQr(consultationAssignee);
-        importer("MEDECIN_SENIOR", senior, fiche).andExpect(status().isCreated());
+        verifierRefus(importer("MEDECIN_SENIOR", senior, ficheAvecQr(consultationAssignee)));
+        byte[] fiche = enregistrerFiche(consultationAssignee);
 
         ficheSignee("MEDECIN_SENIOR", senior, consultationAssignee)
                 .andExpect(status().isOk())
@@ -180,7 +172,7 @@ class ControleAssignationConsultationIntegrationTest {
     @Test
     void sansBadge_401_surLesTroisEndpoints() throws Exception {
         enregistrerFiche(consultationAssignee);
-        MockMultipartFile fichier = new MockMultipartFile("fichier", "fiche.pdf", "application/pdf",
+        MockMultipartFile fichier = new MockMultipartFile("fichiers", "fiche.pdf", "application/pdf",
                 ficheAvecQr(consultationAssignee));
 
         for (ResultActions resultat : List.of(
@@ -199,10 +191,7 @@ class ControleAssignationConsultationIntegrationTest {
 
         pdf("MEDECIN_JUNIOR", autreJunior, sansDemande).andExpect(status().isOk());
 
-        byte[] fiche = ficheAvecQr(sansDemande);
-        importer("MEDECIN_JUNIOR", autreJunior, fiche)
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.consultationId", is(sansDemande)));
+        byte[] fiche = enregistrerFiche(sansDemande);
 
         ficheSignee("MEDECIN_JUNIOR", UUID.randomUUID(), sansDemande)
                 .andExpect(status().isOk())
@@ -216,7 +205,6 @@ class ControleAssignationConsultationIntegrationTest {
 
         pdf("MEDECIN_JUNIOR", autreJunior, absente).andExpect(status().isNotFound());
         ficheSignee("MEDECIN_JUNIOR", autreJunior, absente).andExpect(status().isNotFound());
-        importer("MEDECIN_JUNIOR", autreJunior, ficheAvecQr(absente)).andExpect(status().isNotFound());
     }
 
     // ---------- Outils ----------
@@ -247,7 +235,7 @@ class ControleAssignationConsultationIntegrationTest {
                 .build());
     }
 
-    private void enregistrerFiche(String consultationId) {
+    private byte[] enregistrerFiche(String consultationId) {
         byte[] contenu = ficheAvecQr(consultationId);
         ficheSigneeRepository.saveAndFlush(FicheSignee.builder()
                 .consultation(consultationRepository.getReferenceById(UUID.fromString(consultationId)))
@@ -257,6 +245,7 @@ class ControleAssignationConsultationIntegrationTest {
                 .dateImport(Instant.now())
                 .contenu(contenu)
                 .build());
+        return contenu;
     }
 
     private byte[] ficheAvecQr(String consultationId) {
@@ -270,7 +259,7 @@ class ControleAssignationConsultationIntegrationTest {
 
     private ResultActions importer(String role, UUID compte, byte[] pdf) throws Exception {
         return mockMvc.perform(multipart(URL_IMPORT)
-                .file(new MockMultipartFile("fichier", "fiche.pdf", "application/pdf", pdf))
+                .file(new MockMultipartFile("fichiers", "fiche.pdf", "application/pdf", pdf))
                 .header(HttpHeaders.AUTHORIZATION, fabriqueBadge.bearer(role, compte)));
     }
 

@@ -1,6 +1,7 @@
 package com.proxymed.repository;
 
 import com.proxymed.entity.FicheSignee;
+import com.proxymed.enums.StatutFicheSignee;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -16,6 +17,10 @@ public interface FicheSigneeRepository extends JpaRepository<FicheSignee, UUID> 
     Optional<FicheSignee> findByConsultation_Id(UUID consultationId);
 
     boolean existsByConsultation_Id(UUID consultationId);
+
+    /** Statut de la fiche de la consultation, sans charger son contenu. */
+    @Query("select f.statut from FicheSignee f where f.consultation.id = :consultationId")
+    Optional<StatutFicheSignee> findStatutByConsultationId(UUID consultationId);
 
     /** Fiches signees du patient, de la plus recemment importee a la plus ancienne, sans leur contenu. */
     @Query("""

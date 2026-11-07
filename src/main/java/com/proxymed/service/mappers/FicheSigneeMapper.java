@@ -2,6 +2,7 @@ package com.proxymed.service.mappers;
 
 import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.FicheSignee;
+import com.proxymed.enums.StatutFicheSignee;
 import com.proxymed.repository.ConsultationRepository;
 import com.proxymed.repository.FicheSigneeResume;
 import com.proxymed.service.model.FicheSigneeModel;
@@ -32,6 +33,22 @@ public class FicheSigneeMapper {
                 .dateImport(model.dateImport())
                 .contenu(model.contenu())
                 .build();
+    }
+
+    /**
+     * Reimport d'une fiche RENVOYEE (entite managee, mutee en place) : nouveau scan, de nouveau
+     * EN_ATTENTE, sans visa. motifRenvoi est volontairement laisse tel quel (dernier motif conserve).
+     */
+    public void remplacerScan(FicheSignee entity, FicheSigneeModel model) {
+        entity.setNomFichier(model.nomFichier());
+        entity.setTypeContenu(model.typeContenu());
+        entity.setTailleOctets(model.tailleOctets());
+        entity.setDateImport(model.dateImport());
+        entity.setContenu(model.contenu());
+        entity.setStatut(StatutFicheSignee.EN_ATTENTE);
+        entity.setSeniorVisaId(null);
+        entity.setNomSeniorVisa(null);
+        entity.setDateVisa(null);
     }
 
     public FicheSigneeModel toModel(FicheSignee entity) {

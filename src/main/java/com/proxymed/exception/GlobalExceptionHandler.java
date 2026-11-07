@@ -95,7 +95,40 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
-        return handleFichierTropVolumineux(new FichierTropVolumineuxException());
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).contentType(MediaType.APPLICATION_JSON)
+                .body(new ErrorResponse(HttpStatus.CONTENT_TOO_LARGE.value(), "Fichier trop volumineux", MESSAGE_ENVOI_TROP_VOLUMINEUX));
+    }
+
+    /**
+     * Seule limite du serveur pour l'import en lot (max-request-size) : la limite de 10 Mo par
+     * fichier est verifiee fichier par fichier par le service, qui renvoie un 413 pour ce fichier seul.
+     */
+    static final String MESSAGE_ENVOI_TROP_VOLUMINEUX =
+            "L'envoi depasse la taille totale maximale de 100 Mo : importez les fichiers en plusieurs fois";
+
+    /**
+     * Traduction d'une erreur survenue sur UN fichier d'un import en lot : memes code, erreur et
+     * message que si ce fichier avait ete importe seul. Erreur imprevue : 500, sans son message.
+     */
+    public ErrorResponse erreurDeFichier(RuntimeException ex) {
+        ResponseEntity<ErrorResponse> reponse;
+        if (ex instanceof FichierTropVolumineuxException e) {
+            reponse = handleFichierTropVolumineux(e);
+        } else if (ex instanceof FichierNonPdfException e) {
+            reponse = handleFichierNonPdf(e);
+        } else if (ex instanceof QrCodeIntrouvableException e) {
+            reponse = handleQrCodeIntrouvable(e);
+        } else if (ex instanceof ResourceNotFoundException e) {
+            reponse = handleNotFound(e);
+        } else if (ex instanceof FicheSigneeExistanteException e) {
+            reponse = handleFicheSigneeExistante(e);
+        } else if (ex instanceof RegleGestionException e) {
+            reponse = handleRegleGestion(e);
+        } else {
+            return new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Erreur interne",
+                    "L'import de ce fichier a echoue pour une raison imprevue : reessayez plus tard");
+        }
+        return reponse.getBody();
     }
 
     @ExceptionHandler(FichierNonPdfException.class)

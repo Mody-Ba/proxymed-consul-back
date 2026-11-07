@@ -192,12 +192,13 @@ class VisiteViergeIntegrationTest {
 
         byte[] scan = PdfDeTest.numeriser(pdf, 200);
         mockMvc.perform(multipart("/api/fiches-signees/import")
-                        .file(new MockMultipartFile("fichier", "scan.pdf", "application/pdf", scan))
-                        .header(HttpHeaders.AUTHORIZATION, senior))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.patientId", is(patientId.toString())))
-                .andExpect(jsonPath("$.consultationId", is(visiteId)))
-                .andExpect(jsonPath("$.statut", is("EN_ATTENTE")));
+                        .file(new MockMultipartFile("fichiers", "scan.pdf", "application/pdf", scan))
+                        .header(HttpHeaders.AUTHORIZATION, fabriqueBadge.bearer("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resultats[0].code", is(201)))
+                .andExpect(jsonPath("$.resultats[0].patientId", is(patientId.toString())))
+                .andExpect(jsonPath("$.resultats[0].consultationId", is(visiteId)))
+                .andExpect(jsonPath("$.resultats[0].statut", is("EN_ATTENTE")));
     }
 
     private ResultActions creer(String role, String corps) throws Exception {

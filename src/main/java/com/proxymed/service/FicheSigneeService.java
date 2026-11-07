@@ -10,10 +10,9 @@ public interface FicheSigneeService {
     /**
      * Importe une fiche signee scannee (PDF) sans id : la consultation et le patient sont deduits
      * du QR code imprime sur la fiche, cherche sur toutes les pages. Une consultation n'a qu'une
-     * seule fiche signee : un second import (meme fichier ou non) est refuse.
-     *
-     * @param juniorAControlerId compte du badge d'un medecin junior, qui doit etre le junior assigne
-     *        a la consultation du QR ; null si l'appelant n'est pas soumis a ce controle (senior)
+     * seule fiche signee : un second import est refuse tant qu'elle est EN_ATTENTE ou VISEE ; une
+     * fiche RENVOYEE est remplacee par le nouveau scan et redevient EN_ATTENTE (reimportee = true).
+     * Aucun controle d'assignation de junior : l'import est reserve a l'admin.
      * @throws com.proxymed.exception.FichierTropVolumineuxException si le fichier depasse 10 Mo
      * @throws com.proxymed.exception.FichierNonPdfException si le fichier n'est pas un PDF
      * @throws com.proxymed.exception.RegleGestionException si le PDF est illisible, si le QR n'est pas un QR PROXYMED (dont l'ancien format, id de
@@ -22,12 +21,10 @@ public interface FicheSigneeService {
      * @throws com.proxymed.exception.QrCodeIntrouvableException si aucun QR code n'est trouve
      * @throws com.proxymed.exception.ResourceNotFoundException si le patient ou la consultation
      *         du QR n'existe pas
-     * @throws org.springframework.security.access.AccessDeniedException si la consultation du QR est
-     *         assignee a un autre medecin junior
      * @throws com.proxymed.exception.FicheSigneeExistanteException si la consultation a deja une
-     *         fiche signee
+     *         fiche EN_ATTENTE ou VISEE
      */
-    FicheSigneeModel importer(FicheSigneeModel model, UUID juniorAControlerId);
+    FicheSigneeModel importer(FicheSigneeModel model);
 
     /**
      * Renvoie la fiche signee de la consultation.
