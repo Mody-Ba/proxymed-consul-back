@@ -9,9 +9,15 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.proxymed.service.model.ConsultationModel;
+import com.proxymed.service.model.RapportFicheModel;
 import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.io.RandomAccessReadBuffer;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -20,9 +26,11 @@ import org.thymeleaf.ITemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +46,8 @@ import java.util.Map;
 public class PdfGenerationService {
 
     static final String TEMPLATE_FICHE_CONSULTATION = "fiche-consultation";
+    static final String TEMPLATE_RAPPORT_FICHE = "rapport-fiche";
+    private static final byte[] SIGNATURE_PDF = "%PDF-".getBytes(StandardCharsets.US_ASCII);
     private static final int TAILLE_QR_CODE_PX = 300;
 
     private final ITemplateEngine templateEngine;
@@ -84,6 +94,51 @@ public class PdfGenerationService {
             fusion.setDestinationStream(destination);
             fusion.mergeDocuments(IOUtils.createMemoryOnlyStreamCache());
         });
+    }
+
+    /**
+     * Rapport d'une fiche visee : page de garde (template rapport-fiche, sans donnee medicale) suivie
+     * du scan signe, ajoute tel quel. L'import n'accepte que des PDF ; une image (JPEG, PNG...) est
+     * tout de meme acceptee ici et placee seule sur une page A4, a l'echelle. Meme Resource a usage unique.
+     */
+    public Resource genererRapport(RapportFicheModel rapport) {
+        Context context = new Context(Locale.FRENCH, Map.of("r", rapport, "fuseauHoraire", fuseauHoraire));
+        ByteArrayOutputStream pageDeGarde = new ByteArrayOutputStream();
+        convertirEnPdf(templateEngine.process(TEMPLATE_RAPPORT_FICHE, context), pageDeGarde);
+        byte[] scan = estPdf(rapport.scan()) ? rapport.scan() : imageEnPdf(rapport.scan());
+        return ecrireDansFichierTemporaire(destination -> {
+            PDFMergerUtility fusion = new PDFMergerUtility();
+            fusion.addSource(new RandomAccessReadBuffer(pageDeGarde.toByteArray()));
+            fusion.addSource(new RandomAccessReadBuffer(scan));
+            fusion.setDestinationStream(destination);
+            fusion.mergeDocuments(IOUtils.createMemoryOnlyStreamCache());
+        });
+    }
+
+    private static boolean estPdf(byte[] contenu) {
+        return contenu != null && contenu.length >= SIGNATURE_PDF.length
+                && Arrays.equals(contenu, 0, SIGNATURE_PDF.length, SIGNATURE_PDF, 0, SIGNATURE_PDF.length);
+    }
+
+    /** Une page A4 portant l'image, reduite pour tenir dans la page en gardant ses proportions. */
+    private static byte[] imageEnPdf(byte[] image) {
+        try (PDDocument document = new PDDocument()) {
+            PDImageXObject img = PDImageXObject.createFromByteArray(document, image, "scan");
+            PDRectangle a4 = PDRectangle.A4;
+            float echelle = Math.min(1f, Math.min(a4.getWidth() / img.getWidth(), a4.getHeight() / img.getHeight()));
+            float largeur = img.getWidth() * echelle;
+            float hauteur = img.getHeight() * echelle;
+            PDPage page = new PDPage(a4);
+            document.addPage(page);
+            try (PDPageContentStream contenu = new PDPageContentStream(document, page)) {
+                contenu.drawImage(img, (a4.getWidth() - largeur) / 2, (a4.getHeight() - hauteur) / 2, largeur, hauteur);
+            }
+            ByteArrayOutputStream sortie = new ByteArrayOutputStream();
+            document.save(sortie);
+            return sortie.toByteArray();
+        } catch (IOException | IllegalArgumentException e) {
+            throw new IllegalStateException("Le scan de la fiche n'est ni un PDF ni une image lisible", e);
+        }
     }
 
     String remplirTemplate(ConsultationModel consultation) {
