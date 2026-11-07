@@ -9,6 +9,9 @@ import com.proxymed.enums.RoleMedecin;
 import com.proxymed.enums.Sexe;
 import com.proxymed.repository.MedecinRepository;
 import com.proxymed.repository.PatientRepository;
+import com.proxymed.service.model.ConsultationModel;
+import com.proxymed.service.model.MedecinModel;
+import com.proxymed.service.model.PatientModel;
 import com.proxymed.support.BadgeMedecinParDefaut;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +52,10 @@ class ConsultationIntegrationTest {
     private MedecinRepository medecinRepository;
     @Autowired
     private com.proxymed.repository.MaladieChroniqueRepository maladieChroniqueRepository;
+    @Autowired
+    private com.proxymed.repository.ConsultationRepository consultationRepository;
+    @Autowired
+    private com.proxymed.service.ConsultationService consultationService;
 
     private Patient patient;
     private Medecin medecinSenior;
@@ -279,53 +286,24 @@ class ConsultationIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    /**
+     * La creation directe est fermee : 409 au format d'erreur habituel, rien n'est cree, quel que
+     * soit le corps envoye. Les regles de creerBrouillon restent couvertes par ConsultationServiceTest.
+     */
     @Test
-    void creerBrouillon_prendEnCompteOrigineEtMotifDeLaDemande() throws Exception {
-        String reponse = mockMvc.perform(post("/api/consultations")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "patientId", patient.getId(),
-                                "medecinSeniorId", medecinSenior.getId(),
-                                "origineDemande", "SAMU",
-                                "motifPrincipalConsultation", "Chute a domicile"))))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.origineDemande", is("SAMU")))
-                .andExpect(jsonPath("$.motifPrincipalConsultation", is("Chute a domicile")))
-                .andReturn().getResponse().getContentAsString();
-        String consultationId = objectMapper.readTree(reponse).get("id").asText();
-
-        mockMvc.perform(get("/api/consultations/" + consultationId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.origineDemande", is("SAMU")))
-                .andExpect(jsonPath("$.motifPrincipalConsultation", is("Chute a domicile")));
-    }
-
-    @Test
-    void creerBrouillon_rejette_siMedecinNestPasSenior() throws Exception {
+    void creer_409_creationDirecteFermee() throws Exception {
+        long avant = consultationRepository.count();
         mockMvc.perform(post("/api/consultations")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "patientId", patient.getId(),
-                                "medecinSeniorId", medecinJunior.getId()))))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void creerBrouillon_rejette_siPatientOuMedecinManquant() throws Exception {
-        mockMvc.perform(post("/api/consultations")
-                        .contentType("application/json")
-                        .content("{}"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void creerBrouillon_renvoie404_siPatientInconnu() throws Exception {
-        mockMvc.perform(post("/api/consultations")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "patientId", UUID.randomUUID(),
                                 "medecinSeniorId", medecinSenior.getId()))))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status", is(409)))
+                .andExpect(jsonPath("$.erreur", is("Creation de consultation fermee")))
+                .andExpect(jsonPath("$.message", is("La creation directe d'une consultation n'est plus possible : "
+                        + "la visite est creee par l'admin a l'impression de la fiche (POST /api/visites/impression)")));
+        assertThat(consultationRepository.count()).isEqualTo(avant);
     }
 
     @Test
@@ -342,16 +320,13 @@ class ConsultationIntegrationTest {
         assertThat(new String(pdf, 0, 5)).isEqualTo("%PDF-");
     }
 
-    private String creerBrouillon() throws Exception {
-        String reponse = mockMvc.perform(post("/api/consultations")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "patientId", patient.getId(),
-                                "medecinSeniorId", medecinSenior.getId()))))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.statut", is("BROUILLON")))
-                .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(reponse).get("id").asText();
+    /** Brouillon cree par le service (la creation par l'API est fermee). */
+    private String creerBrouillon() {
+        return consultationService.creerBrouillon(ConsultationModel.builder()
+                        .patient(PatientModel.builder().id(patient.getId()).build())
+                        .medecinSenior(MedecinModel.builder().id(medecinSenior.getId()).build())
+                        .build())
+                .id().toString();
     }
 
     private long creerMaladieChronique(String libelle) throws Exception {

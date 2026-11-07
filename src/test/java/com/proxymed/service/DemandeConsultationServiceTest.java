@@ -19,7 +19,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
-import org.springframework.security.access.AccessDeniedException;
 
 import java.time.Instant;
 import java.util.List;
@@ -108,20 +107,8 @@ class DemandeConsultationServiceTest {
         assertThatThrownBy(() -> service.findAll(null, -1, 20)).isInstanceOf(RegleGestionException.class);
         assertThatThrownBy(() -> service.findByDemandeur(UUID.randomUUID(), 0, 0))
                 .isInstanceOf(RegleGestionException.class);
-        assertThatThrownBy(() -> service.findAssigneesAuJunior(UUID.randomUUID(), 0, 101))
-                .isInstanceOf(RegleGestionException.class);
+        assertThatThrownBy(() -> service.findAll(null, 0, 101)).isInstanceOf(RegleGestionException.class);
         verifyNoInteractions(demandeConsultationRepository);
-    }
-
-    @Test
-    void findAssigneesAuJunior_neChercheQueLesAcceptees() {
-        UUID junior = UUID.randomUUID();
-        when(demandeConsultationRepository.findByJuniorIdAndStatut(any(), any(), any())).thenReturn(Page.empty());
-
-        service.findAssigneesAuJunior(junior, 0, 20);
-
-        verify(demandeConsultationRepository)
-                .findByJuniorIdAndStatut(eq(junior), eq(StatutDemandeConsultation.ACCEPTEE), any(Pageable.class));
     }
 
     @Test
@@ -188,43 +175,6 @@ class DemandeConsultationServiceTest {
 
         assertThatThrownBy(() -> service.accepter(id, UUID.randomUUID(), UUID.randomUUID()))
                 .isInstanceOf(DemandeDejaTraiteeException.class);
-    }
-
-    @Test
-    void verifierJuniorAssigne_accepte_leJuniorDeLaDemandeLiee() {
-        UUID consultationId = UUID.randomUUID();
-        UUID junior = UUID.randomUUID();
-        when(demandeConsultationRepository.findByConsultationId(consultationId))
-                .thenReturn(Optional.of(liee(consultationId, junior)));
-
-        service.verifierJuniorAssigne(consultationId, junior);
-    }
-
-    @Test
-    void verifierJuniorAssigne_rejette_unAutreJunior() {
-        UUID consultationId = UUID.randomUUID();
-        when(demandeConsultationRepository.findByConsultationId(consultationId))
-                .thenReturn(Optional.of(liee(consultationId, UUID.randomUUID())));
-
-        assertThatThrownBy(() -> service.verifierJuniorAssigne(consultationId, UUID.randomUUID()))
-                .isInstanceOf(AccessDeniedException.class);
-    }
-
-    /** Consultation creee sans demande (ou avant les demandes) : aucune assignation a controler. */
-    @Test
-    void verifierJuniorAssigne_neRestreintPas_sansDemandeLiee() {
-        UUID consultationId = UUID.randomUUID();
-        when(demandeConsultationRepository.findByConsultationId(consultationId)).thenReturn(Optional.empty());
-
-        service.verifierJuniorAssigne(consultationId, UUID.randomUUID());
-    }
-
-    private static DemandeConsultation liee(UUID consultationId, UUID junior) {
-        DemandeConsultation demande = enAttente(UUID.randomUUID());
-        demande.setStatut(StatutDemandeConsultation.ACCEPTEE);
-        demande.setJuniorId(junior);
-        demande.setConsultationId(consultationId);
-        return demande;
     }
 
     private static DemandeConsultation enAttente(UUID id) {

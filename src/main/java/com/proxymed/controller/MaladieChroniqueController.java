@@ -19,7 +19,7 @@ public class MaladieChroniqueController {
     private final MaladieChroniqueService maladieChroniqueService;
     private final MaladieChroniqueMapper maladieChroniqueMapper;
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping
     public List<MaladieChroniqueResponse> findAll() {
         return maladieChroniqueMapper.toResponseList(maladieChroniqueService.findActives());

@@ -52,7 +52,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     /**
      * Le role vient du claim "roles" du badge, relu a chaque requete, et devient l'autorite
-     * Spring "ROLE_" + role : c'est elle que verifie @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', ...)").
+     * Spring "ROLE_" + role : c'est elle que verifie @PreAuthorize("hasRole('MEDECIN_SENIOR')").
      */
     private void authentifier(InfosBadge badge, HttpServletRequest request) {
         UtilisateurConnecte principal = new UtilisateurConnecte(badge.utilisateurId(), badge.email(), badge.roles());

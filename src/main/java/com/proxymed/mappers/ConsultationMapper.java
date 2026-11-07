@@ -1,6 +1,5 @@
 package com.proxymed.mappers;
 
-import com.proxymed.service.model.ConsultationCreateRequest;
 import com.proxymed.service.model.ConsultationModel;
 import com.proxymed.service.model.ConsultationResponse;
 import com.proxymed.service.model.ConsultationSummaryResponse;
@@ -15,7 +14,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Mapper API : convertit uniquement ConsultationCreateRequest/UpdateRequest <-> ConsultationModel
+ * Mapper API : convertit uniquement ConsultationUpdateRequest <-> ConsultationModel
  * et ConsultationModel -> ConsultationResponse/ConsultationSummaryResponse.
  * Ne doit jamais connaitre l'entite JPA ConsultationInitiale.
  *
@@ -34,19 +33,6 @@ public class ConsultationMapper {
     private final ConstanteVitaleMapper constanteVitaleMapper;
     private final ExamenParAppareilMapper examenParAppareilMapper;
     private final AntecedentMaladieMapper antecedentMaladieMapper;
-
-    public ConsultationModel toModel(ConsultationCreateRequest req) {
-        return ConsultationModel.builder()
-                .patient(PatientModel.builder().id(req.patientId()).build())
-                .medecinSenior(MedecinModel.builder().id(req.medecinSeniorId()).build())
-                .dateConsultation(req.dateConsultation())
-                .heureConsultation(req.heureConsultation())
-                .saisiePar(req.saisiePar())
-                .origineDemande(req.origineDemande())
-                .origineDemandeAutrePrecision(req.origineDemandeAutrePrecision())
-                .motifPrincipalConsultation(req.motifPrincipalConsultation())
-                .build();
-    }
 
     /**
      * Intention de mise a jour partielle : les champs absents de la requete restent null

@@ -17,8 +17,4 @@ public interface DemandeConsultationRepository extends JpaRepository<DemandeCons
 
     Page<DemandeConsultation> findByStatut(StatutDemandeConsultation statut, Pageable pageable);
 
-    Page<DemandeConsultation> findByJuniorIdAndStatut(UUID juniorId, StatutDemandeConsultation statut, Pageable pageable);
-
-    /** Au plus une demande par consultation (contrainte uk_demande_consultation_consultation). */
-    Optional<DemandeConsultation> findByConsultationId(UUID consultationId);
 }

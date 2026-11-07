@@ -24,13 +24,13 @@ public class ExamenParAppareilController {
     private final ExamenParAppareilService examenParAppareilService;
     private final ExamenParAppareilMapper examenParAppareilMapper;
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping
     public ExamenParAppareilResponse findOne(@PathVariable UUID consultationId) {
         return examenParAppareilMapper.toResponse(examenParAppareilService.findByConsultation(consultationId));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PutMapping
     public ExamenParAppareilResponse creerOuMettreAJour(@PathVariable UUID consultationId,
                                                          @Valid @RequestBody ExamenParAppareilRequest request) {

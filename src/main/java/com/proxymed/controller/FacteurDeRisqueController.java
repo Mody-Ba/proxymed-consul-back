@@ -19,7 +19,7 @@ public class FacteurDeRisqueController {
     private final FacteurDeRisqueService facteurDeRisqueService;
     private final FacteurDeRisqueMapper facteurDeRisqueMapper;
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping
     public List<FacteurDeRisqueResponse> findAll() {
         return facteurDeRisqueMapper.toResponseList(facteurDeRisqueService.findActifs());

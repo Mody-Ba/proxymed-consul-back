@@ -29,13 +29,13 @@ public class AntecedentMaladieController {
     private final AntecedentMaladieService antecedentMaladieService;
     private final AntecedentMaladieMapper antecedentMaladieMapper;
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @GetMapping
     public List<AntecedentMaladieResponse> findAll(@PathVariable UUID consultationId) {
         return antecedentMaladieMapper.toResponseList(antecedentMaladieService.findByConsultation(consultationId));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AntecedentMaladieResponse ajouter(@PathVariable UUID consultationId,
@@ -44,7 +44,7 @@ public class AntecedentMaladieController {
                 antecedentMaladieService.ajouter(consultationId, antecedentMaladieMapper.toModel(request)));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PutMapping("/{antecedentId}")
     public AntecedentMaladieResponse modifier(@PathVariable UUID consultationId, @PathVariable Long antecedentId,
                                                @Valid @RequestBody AntecedentMaladieRequest request) {
@@ -52,7 +52,7 @@ public class AntecedentMaladieController {
                 antecedentMaladieService.modifier(consultationId, antecedentId, antecedentMaladieMapper.toModel(request)));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @DeleteMapping("/{antecedentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void supprimer(@PathVariable UUID consultationId, @PathVariable Long antecedentId) {

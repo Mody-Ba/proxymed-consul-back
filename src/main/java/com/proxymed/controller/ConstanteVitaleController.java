@@ -27,7 +27,7 @@ public class ConstanteVitaleController {
     private final ConstanteVitaleService constanteVitaleService;
     private final ConstanteVitaleMapper constanteVitaleMapper;
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ConstanteVitaleResponse ajouter(@PathVariable UUID consultationId,
@@ -36,7 +36,7 @@ public class ConstanteVitaleController {
                 constanteVitaleService.ajouter(consultationId, constanteVitaleMapper.toModel(request)));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PutMapping("/{constanteId}")
     public ConstanteVitaleResponse modifier(@PathVariable UUID consultationId, @PathVariable Long constanteId,
                                              @Valid @RequestBody ConstanteVitaleRequest request) {
@@ -44,7 +44,7 @@ public class ConstanteVitaleController {
                 constanteVitaleService.modifier(consultationId, constanteId, constanteVitaleMapper.toModel(request)));
     }
 
-    @PreAuthorize("hasAnyRole('MEDECIN_JUNIOR', 'MEDECIN_SENIOR')")
+    @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @DeleteMapping("/{constanteId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void supprimer(@PathVariable UUID consultationId, @PathVariable Long constanteId) {

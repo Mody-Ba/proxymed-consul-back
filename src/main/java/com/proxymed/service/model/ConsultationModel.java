@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Couche interne neutre : ni le contrat API (ConsultationCreateRequest/UpdateRequest/Response),
+ * Couche interne neutre : ni le contrat API (ConsultationUpdateRequest/Response),
  * ni l'entite JPA ConsultationInitiale. C'est ce type que le service manipule.
  *
  * Utilise aussi comme "intention de mise a jour" partielle : dans ce cas, un champ absent

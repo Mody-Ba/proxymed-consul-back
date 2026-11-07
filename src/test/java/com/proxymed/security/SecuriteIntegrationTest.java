@@ -27,7 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(FabriqueBadge.class)
 class SecuriteIntegrationTest {
 
-    private static final String URL = "/api/medecins";
+    /** Adresse reservee au medecin senior : tout autre role recoit 403. */
+    private static final String URL = "/api/referentiels/structures";
 
     @Autowired
     private MockMvc mockMvc;
@@ -69,8 +70,9 @@ class SecuriteIntegrationTest {
     }
 
     @Test
-    void medecinJunior_accesOk() throws Exception {
-        appeler(fabriqueBadge.bearer("MEDECIN_JUNIOR")).andExpect(status().isOk());
+    void medecinJunior_403() throws Exception {
+        verifierErreur(appeler(fabriqueBadge.bearer("MEDECIN_JUNIOR")),
+                403, "Acces refuse", "Votre role ne permet pas d'acceder a cette ressource");
     }
 
     @Test
