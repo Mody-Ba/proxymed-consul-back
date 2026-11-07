@@ -131,6 +131,25 @@ public class GlobalExceptionHandler {
         return reponse.getBody();
     }
 
+    /**
+     * Traduction d'une erreur survenue sur UNE fiche d'un visa ou d'un renvoi en lot : memes code,
+     * erreur et message qu'une requete sur cette seule fiche. Erreur imprevue : 500, sans son message.
+     */
+    public ErrorResponse erreurDeDecision(RuntimeException ex) {
+        ResponseEntity<ErrorResponse> reponse;
+        if (ex instanceof ResourceNotFoundException e) {
+            reponse = handleNotFound(e);
+        } else if (ex instanceof ConflitEtatException e) {
+            reponse = handleConflitEtat(e);
+        } else if (ex instanceof RegleGestionException e) {
+            reponse = handleRegleGestion(e);
+        } else {
+            return new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Erreur interne",
+                    "Le traitement de cette fiche a echoue pour une raison imprevue : reessayez plus tard");
+        }
+        return reponse.getBody();
+    }
+
     @ExceptionHandler(FichierNonPdfException.class)
     public ResponseEntity<ErrorResponse> handleFichierNonPdf(FichierNonPdfException ex) {
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)

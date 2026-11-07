@@ -4,7 +4,9 @@ import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.FicheSignee;
 import com.proxymed.enums.StatutFicheSignee;
 import com.proxymed.repository.ConsultationRepository;
+import com.proxymed.repository.FicheAViserResume;
 import com.proxymed.repository.FicheSigneeResume;
+import com.proxymed.service.model.FicheAViserModel;
 import com.proxymed.service.model.FicheSigneeModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -83,6 +85,23 @@ public class FicheSigneeMapper {
                 .dateImport(resume.getDateImport())
                 .statut(resume.getStatut())
                 .seniorVisaId(resume.getSeniorVisaId())
+                .nomSeniorVisa(resume.getNomSeniorVisa())
+                .dateVisa(resume.getDateVisa())
+                .motifRenvoi(resume.getMotifRenvoi())
+                .build();
+    }
+
+    public FicheAViserModel toModel(FicheAViserResume resume) {
+        return FicheAViserModel.builder()
+                .ficheId(resume.getFicheId())
+                .visiteId(resume.getVisiteId())
+                .patientId(resume.getPatientId())
+                .nomPatient(resume.getNomPatient())
+                .numeroDossierProxymed(resume.getNumeroDossierProxymed())
+                .typeVisite(resume.getTypeVisite())
+                .dateConsultation(resume.getDateConsultation())
+                .dateImport(resume.getDateImport())
+                .statut(resume.getStatut())
                 .nomSeniorVisa(resume.getNomSeniorVisa())
                 .dateVisa(resume.getDateVisa())
                 .motifRenvoi(resume.getMotifRenvoi())
