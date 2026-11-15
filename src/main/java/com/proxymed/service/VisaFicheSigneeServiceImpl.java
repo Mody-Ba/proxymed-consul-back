@@ -1,6 +1,8 @@
 package com.proxymed.service;
 
+import com.proxymed.enums.FrequenceVisites;
 import com.proxymed.enums.StatutFicheSignee;
+import com.proxymed.enums.TypeVisite;
 import com.proxymed.exception.ConflitEtatException;
 import com.proxymed.exception.RegleGestionException;
 import com.proxymed.exception.ResourceNotFoundException;
@@ -53,10 +55,14 @@ public class VisaFicheSigneeServiceImpl implements VisaFicheSigneeService {
     }
 
     @Override
-    public void viser(UUID visiteId, UUID seniorId, String nomSenior) {
+    public void viser(UUID visiteId, FrequenceVisites frequenceVisites, UUID seniorId, String nomSenior) {
         EtatFicheSignee etat = ficheEnAttente(visiteId, "visee");
+        if (frequenceVisites != null && etat.getTypeVisite() != TypeVisite.INITIALE) {
+            throw new RegleGestionException("La frequence des visites ne se decide qu'au visa d'une visite "
+                    + "initiale : la visite " + visiteId + " est une visite de routine");
+        }
         int modifiees = ficheSigneeRepository.viserSiVersion(etat.getId(), etat.getVersion(), seniorId, nomSenior,
-                Instant.now());
+                Instant.now(), frequenceVisites);
         verifierModifiee(modifiees, visiteId);
     }
 

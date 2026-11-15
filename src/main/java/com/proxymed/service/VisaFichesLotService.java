@@ -1,6 +1,7 @@
 package com.proxymed.service;
 
 import com.proxymed.service.model.ResultatDecisionModel;
+import com.proxymed.service.model.VisaFicheModel;
 
 import java.util.List;
 import java.util.UUID;
@@ -17,13 +18,14 @@ public interface VisaFichesLotService {
 
     /**
      * Vise chaque fiche independamment, dans l'ordre (VisaFicheSigneeService.viser, une transaction
-     * par fiche) : l'echec d'une fiche n'annule pas les autres. Un resultat par visite, dans le meme ordre.
+     * par fiche), avec sa frequence des visites (facultative) : l'echec d'une fiche n'annule pas les
+     * autres. Un resultat par visite, dans le meme ordre.
      *
      * @throws com.proxymed.exception.RegleGestionException si la liste est vide, depasse MAX_FICHES,
      *         contient un doublon ou un identifiant vide, ou si le nom du senior est vide ou trop long
      *         (rien n'est vise)
      */
-    List<ResultatDecisionModel> viser(List<UUID> visiteIds, UUID seniorId, String nomSenior);
+    List<ResultatDecisionModel> viser(List<VisaFicheModel> fiches, UUID seniorId, String nomSenior);
 
     /**
      * Renvoie chaque fiche independamment, avec le meme motif, comme viser.

@@ -38,6 +38,7 @@ public class FicheSigneeMapper {
                 .tailleOctets(model.tailleOctets())
                 .dateImport(model.dateImport())
                 .statut(model.statut())
+                .frequenceVisitesSenior(model.frequenceVisitesSenior())
                 .build();
     }
 }

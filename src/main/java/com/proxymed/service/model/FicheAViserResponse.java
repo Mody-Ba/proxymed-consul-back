@@ -1,6 +1,7 @@
 package com.proxymed.service.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.proxymed.enums.FrequenceVisites;
 import com.proxymed.enums.StatutFicheSignee;
 import com.proxymed.enums.TypeVisite;
 import lombok.Builder;
@@ -13,7 +14,8 @@ import java.util.UUID;
  * Ligne de la liste des fiches du senior. Reservee au senior, qui a le droit de voir l'identite du
  * patient (nom, numero de dossier). Le scan se lit par GET /api/consultations/{visiteId}/fiche-signee.
  * nomSeniorVisa et dateVisa : fiche VISEE seulement ; motifRenvoi : fiche RENVOYEE (ou EN_ATTENTE
- * reimportee apres un renvoi, pour voir pourquoi elle revient).
+ * reimportee apres un renvoi, pour voir pourquoi elle revient) ; frequenceVisitesSenior : fiche
+ * VISEE d'une visite INITIALE, si le senior l'a precisee au visa.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Builder(toBuilder = true)
@@ -29,6 +31,7 @@ public record FicheAViserResponse(
         StatutFicheSignee statut,
         String nomSeniorVisa,
         Instant dateVisa,
-        String motifRenvoi
+        String motifRenvoi,
+        FrequenceVisites frequenceVisitesSenior
 ) {
 }

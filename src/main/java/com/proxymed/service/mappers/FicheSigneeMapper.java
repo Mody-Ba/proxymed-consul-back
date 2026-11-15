@@ -39,7 +39,7 @@ public class FicheSigneeMapper {
 
     /**
      * Reimport d'une fiche RENVOYEE (entite managee, mutee en place) : nouveau scan, de nouveau
-     * EN_ATTENTE, sans visa. motifRenvoi est volontairement laisse tel quel (dernier motif conserve).
+     * EN_ATTENTE, sans visa ni frequence des visites. motifRenvoi est volontairement laisse tel quel (dernier motif conserve).
      */
     public void remplacerScan(FicheSignee entity, FicheSigneeModel model) {
         entity.setNomFichier(model.nomFichier());
@@ -51,6 +51,7 @@ public class FicheSigneeMapper {
         entity.setSeniorVisaId(null);
         entity.setNomSeniorVisa(null);
         entity.setDateVisa(null);
+        entity.setFrequenceVisitesSenior(null);
     }
 
     public FicheSigneeModel toModel(FicheSignee entity) {
@@ -70,6 +71,7 @@ public class FicheSigneeMapper {
                 .nomSeniorVisa(entity.getNomSeniorVisa())
                 .dateVisa(entity.getDateVisa())
                 .motifRenvoi(entity.getMotifRenvoi())
+                .frequenceVisitesSenior(entity.getFrequenceVisitesSenior())
                 .build();
     }
 
@@ -88,6 +90,7 @@ public class FicheSigneeMapper {
                 .nomSeniorVisa(resume.getNomSeniorVisa())
                 .dateVisa(resume.getDateVisa())
                 .motifRenvoi(resume.getMotifRenvoi())
+                .frequenceVisitesSenior(resume.getFrequenceVisitesSenior())
                 .build();
     }
 
@@ -105,6 +108,7 @@ public class FicheSigneeMapper {
                 .nomSeniorVisa(resume.getNomSeniorVisa())
                 .dateVisa(resume.getDateVisa())
                 .motifRenvoi(resume.getMotifRenvoi())
+                .frequenceVisitesSenior(resume.getFrequenceVisitesSenior())
                 .build();
     }
 }

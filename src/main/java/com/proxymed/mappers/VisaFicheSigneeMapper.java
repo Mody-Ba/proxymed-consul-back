@@ -8,6 +8,8 @@ import com.proxymed.service.model.FicheAViserResponse;
 import com.proxymed.service.model.PageResponse;
 import com.proxymed.service.model.ResultatDecisionModel;
 import com.proxymed.service.model.ResultatDecisionResponse;
+import com.proxymed.service.model.VisaFicheModel;
+import com.proxymed.service.model.VisaLotRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -48,7 +50,15 @@ public class VisaFicheSigneeMapper {
                 .nomSeniorVisa(model.nomSeniorVisa())
                 .dateVisa(model.dateVisa())
                 .motifRenvoi(model.motifRenvoi())
+                .frequenceVisitesSenior(model.frequenceVisitesSenior())
                 .build();
+    }
+
+    /** Requete de visa en lot -> fiches a viser, dans le meme ordre (liste deja validee). */
+    public List<VisaFicheModel> toModels(VisaLotRequest request) {
+        return request.fiches().stream()
+                .map(fiche -> new VisaFicheModel(fiche.visiteId(), fiche.frequenceVisites()))
+                .toList();
     }
 
     public DecisionLotResponse toResponse(List<ResultatDecisionModel> resultats) {

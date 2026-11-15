@@ -72,20 +72,22 @@ public class VisaFicheSigneeController {
 
     /**
      * Visa d'une ou plusieurs fiches EN_ATTENTE, une transaction par fiche : une fiche refusee
-     * n'empeche pas les autres. Toujours 200 si la requete elle-meme est valide ; le detail est dans
+     * n'empeche pas les autres. Pour chaque fiche, la frequence des visites decidee par le senior
+     * (HEBDOMADAIRE, BIMENSUELLE ou MENSUELLE) est facultative, et refusee pour une visite de ROUTINE. Toujours 200 si la requete elle-meme est valide ; le detail est dans
      * le resultat de chaque fiche.
      */
     @ApiResponse(responseCode = "200", description = "Un resultat par visite (VISEE, ou ERREUR avec son code : "
-            + "404 visite ou fiche introuvable, 409 fiche qui n'est pas EN_ATTENTE ou visee au meme moment par un autre senior)")
+            + "400 frequence des visites pour une visite de ROUTINE, 404 visite ou fiche introuvable, "
+            + "409 fiche qui n'est pas EN_ATTENTE ou visee au meme moment par un autre senior)")
     @ApiResponse(responseCode = "400", description = "Liste vide, de plus de " + VisaFichesLotService.MAX_FICHES
-            + " visites ou avec des doublons (rien n'est vise)")
+            + " fiches ou avec des doublons, visite absente ou frequence inconnue (rien n'est vise)")
     @ApiResponse(responseCode = "403", description = "Reserve au medecin senior")
     @PreAuthorize("hasRole('MEDECIN_SENIOR')")
     @PostMapping("/visa")
     public DecisionLotResponse viser(@Valid @RequestBody VisaLotRequest request,
                                      @AuthenticationPrincipal UtilisateurConnecte senior) {
         return visaFicheSigneeMapper.toResponse(
-                visaFichesLotService.viser(request.visiteIds(), senior.id(), senior.email()));
+                visaFichesLotService.viser(visaFicheSigneeMapper.toModels(request), senior.id(), senior.email()));
     }
 
     /**

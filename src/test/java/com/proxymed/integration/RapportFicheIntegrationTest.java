@@ -4,6 +4,7 @@ import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.FicheSignee;
 import com.proxymed.entity.Patient;
 import com.proxymed.enums.CouvertureSociale;
+import com.proxymed.enums.FrequenceVisites;
 import com.proxymed.enums.Sexe;
 import com.proxymed.enums.StatutConsultation;
 import com.proxymed.enums.StatutFicheSignee;
@@ -125,6 +126,39 @@ class RapportFicheIntegrationTest {
     }
 
     @Test
+    void senior_ficheViseeAvecFrequence_pageDeGardeAfficheLaFrequence() throws Exception {
+        UUID visite = visite(TypeVisite.INITIALE, StatutFicheSignee.VISEE, PdfDeTest.pdfAvecQr((String) null),
+                FrequenceVisites.BIMENSUELLE);
+
+        assertThat(pageDeGarde(visite))
+                .contains("Fréquence des visites décidée par le senior")
+                .contains("Bimensuelle")
+                .doesNotContain("Non précisée");
+    }
+
+    @Test
+    void senior_ficheViseeSansFrequence_pageDeGardeAfficheNonPrecisee() throws Exception {
+        UUID visite = visite(TypeVisite.INITIALE, StatutFicheSignee.VISEE, PdfDeTest.pdfAvecQr((String) null));
+
+        assertThat(pageDeGarde(visite))
+                .contains("Fréquence des visites décidée par le senior")
+                .contains("Non précisée");
+    }
+
+    private String pageDeGarde(UUID visite) throws Exception {
+        byte[] pdf = mockMvc.perform(get(url(visite)).header(HttpHeaders.AUTHORIZATION, fabriqueBadge.bearer("MEDECIN_SENIOR")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            PDFTextStripper lecteur = new PDFTextStripper();
+            lecteur.setStartPage(1);
+            lecteur.setEndPage(1);
+            // Un libelle long passe sur deux lignes dans sa colonne : on compare le texte sans retours a la ligne.
+            return lecteur.getText(document).replaceAll("\\s+", " ");
+        }
+    }
+
+    @Test
     void senior_scanImage_placeSurUnePage() throws Exception {
         BufferedImage image = new BufferedImage(400, 600, BufferedImage.TYPE_INT_RGB);
         ByteArrayOutputStream png = new ByteArrayOutputStream();
@@ -195,6 +229,10 @@ class RapportFicheIntegrationTest {
     }
 
     private UUID visite(TypeVisite type, StatutFicheSignee statut, byte[] scan) {
+        return visite(type, statut, scan, null);
+    }
+
+    private UUID visite(TypeVisite type, StatutFicheSignee statut, byte[] scan, FrequenceVisites frequence) {
         ConsultationInitiale visite = consultationRepository.save(ConsultationInitiale.builder()
                 .patient(patientRepository.getReferenceById(patientId))
                 .statut(StatutConsultation.BROUILLON)
@@ -210,7 +248,8 @@ class RapportFicheIntegrationTest {
                 .contenu(scan)
                 .statut(statut);
         if (statut == StatutFicheSignee.VISEE) {
-            fiche.seniorVisaId(UUID.randomUUID()).nomSeniorVisa(NOM_SENIOR).dateVisa(Instant.parse("2026-03-07T10:30:00Z"));
+            fiche.seniorVisaId(UUID.randomUUID()).nomSeniorVisa(NOM_SENIOR).dateVisa(Instant.parse("2026-03-07T10:30:00Z"))
+                    .frequenceVisitesSenior(frequence);
         } else if (statut == StatutFicheSignee.RENVOYEE) {
             fiche.motifRenvoi("Scan illisible");
         }
