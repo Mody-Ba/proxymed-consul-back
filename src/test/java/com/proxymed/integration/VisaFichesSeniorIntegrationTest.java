@@ -4,6 +4,7 @@ import com.proxymed.entity.ConsultationInitiale;
 import com.proxymed.entity.FicheSignee;
 import com.proxymed.entity.Patient;
 import com.proxymed.enums.CouvertureSociale;
+import com.proxymed.enums.FrequenceVisites;
 import com.proxymed.enums.Sexe;
 import com.proxymed.enums.StatutConsultation;
 import com.proxymed.enums.StatutFicheSignee;
@@ -14,11 +15,14 @@ import com.proxymed.repository.FicheSigneeRepository;
 import com.proxymed.repository.PatientRepository;
 import com.proxymed.service.VisaFichesLotService;
 import com.proxymed.service.model.ResultatDecisionModel;
+import com.proxymed.service.model.VisaFicheModel;
 import com.proxymed.support.FabriqueBadge;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -190,7 +194,7 @@ class VisaFichesSeniorIntegrationTest {
         Instant avant = Instant.now();
 
         mockMvc.perform(json(post(URL_VISA), bearerSenior,
-                        "{\"visiteIds\":[\"" + enAttente + "\",\"" + dejaVisee + "\",\"" + inexistante + "\"]}"))
+                        visa(enAttente, dejaVisee, inexistante)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nombreFiches", is(3)))
                 .andExpect(jsonPath("$.nombreReussies", is(1)))
@@ -224,12 +228,138 @@ class VisaFichesSeniorIntegrationTest {
         assertThat(((Number) inchangee.get("VERSION")).longValue()).isZero();
     }
 
+    // --- Frequence des visites decidee au visa ---
+
+    @ParameterizedTest
+    @EnumSource(FrequenceVisites.class)
+    void senior_viseVisiteInitiale_avecFrequence_enregistreeEtRenvoyeeDansLesListes(FrequenceVisites frequence)
+            throws Exception {
+        UUID visite = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+
+        mockMvc.perform(json(post(URL_VISA), bearerSenior, visaAvecFrequence(visite, frequence.name())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombreReussies", is(1)))
+                .andExpect(jsonPath("$.resultats[0].resultat", is("VISEE")));
+
+        Map<String, Object> ligne = ligneFiche(visite);
+        assertThat(ligne.get("STATUT")).isEqualTo("VISEE");
+        assertThat(ligne.get("FREQUENCE_VISITES_SENIOR")).isEqualTo(frequence.name());
+        assertThat(((Number) ligne.get("VERSION")).longValue()).isEqualTo(1L);
+
+        mockMvc.perform(get(URL_LISTE).param("statut", "VISEE").param("taille", "1")
+                        .header(HttpHeaders.AUTHORIZATION, bearerSenior))
+                .andExpect(jsonPath("$.elements[0].visiteId", is(visite.toString())))
+                .andExpect(jsonPath("$.elements[0].frequenceVisitesSenior", is(frequence.name())));
+        mockMvc.perform(get("/api/patients/" + patientId + "/fiches-signees")
+                        .header(HttpHeaders.AUTHORIZATION, bearerSenior))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].consultationId", is(visite.toString())))
+                .andExpect(jsonPath("$[0].frequenceVisitesSenior", is(frequence.name())));
+    }
+
+    @Test
+    void senior_viseVisiteInitiale_sansFrequence_ok_frequenceAbsente() throws Exception {
+        UUID visite = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+
+        mockMvc.perform(json(post(URL_VISA), bearerSenior,
+                        "{\"fiches\":[{\"visiteId\":\"" + visite + "\",\"frequenceVisites\":null}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resultats[0].resultat", is("VISEE")));
+
+        assertThat(ligneFiche(visite).get("STATUT")).isEqualTo("VISEE");
+        assertThat(ligneFiche(visite).get("FREQUENCE_VISITES_SENIOR")).isNull();
+        mockMvc.perform(get(URL_LISTE).param("statut", "VISEE").param("taille", "1")
+                        .header(HttpHeaders.AUTHORIZATION, bearerSenior))
+                .andExpect(jsonPath("$.elements[0].visiteId", is(visite.toString())))
+                .andExpect(jsonPath("$.elements[0].frequenceVisitesSenior").doesNotExist());
+    }
+
+    @Test
+    void senior_viseVisiteRoutine_avecFrequence_400_ficheResteEnAttente() throws Exception {
+        UUID visite = visiteAvecFiche(TypeVisite.ROUTINE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+
+        mockMvc.perform(json(post(URL_VISA), bearerSenior, visaAvecFrequence(visite, "HEBDOMADAIRE")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombreErreurs", is(1)))
+                .andExpect(jsonPath("$.resultats[0].resultat", is("ERREUR")))
+                .andExpect(jsonPath("$.resultats[0].code", is(400)))
+                .andExpect(jsonPath("$.resultats[0].erreur", is("Regle de gestion non respectee")))
+                .andExpect(jsonPath("$.resultats[0].message", is("La frequence des visites ne se decide qu'au visa "
+                        + "d'une visite initiale : la visite " + visite + " est une visite de routine")));
+
+        Map<String, Object> ligne = ligneFiche(visite);
+        assertThat(ligne.get("STATUT")).isEqualTo("EN_ATTENTE");
+        assertThat(ligne.get("FREQUENCE_VISITES_SENIOR")).isNull();
+        assertThat(((Number) ligne.get("VERSION")).longValue()).isZero();
+    }
+
+    @Test
+    void senior_frequenceInconnue_400_rienNestVise() throws Exception {
+        UUID autre = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+        UUID visite = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+
+        mockMvc.perform(json(post(URL_VISA), bearerSenior, "{\"fiches\":[{\"visiteId\":\"" + autre + "\"},"
+                        + "{\"visiteId\":\"" + visite + "\",\"frequenceVisites\":\"QUOTIDIENNE\"}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erreur", is("Requete invalide")))
+                .andExpect(jsonPath("$.message", is("Valeur invalide pour le champ \"frequenceVisites\"")));
+
+        assertThat(ligneFiche(autre).get("STATUT")).isEqualTo("EN_ATTENTE");
+        assertThat(ligneFiche(visite).get("STATUT")).isEqualTo("EN_ATTENTE");
+    }
+
+    @Test
+    void senior_viseSansIdentifiantDeVisite_400() throws Exception {
+        mockMvc.perform(json(post(URL_VISA), bearerSenior, "{\"fiches\":[{\"frequenceVisites\":\"MENSUELLE\"}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]", is("fiches[0].visiteId : l'identifiant de la visite est obligatoire")));
+        mockMvc.perform(json(post(URL_VISA), bearerSenior, "{\"visiteIds\":[\"" + UUID.randomUUID() + "\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Champ inconnu dans la requete : visiteIds")));
+    }
+
+    @Test
+    void senior_lotMixte_frequencesPropresAChaqueFiche_resultatsFicheParFiche() throws Exception {
+        UUID initialeHebdo = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+        UUID initialeSans = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+        UUID routineAvec = visiteAvecFiche(TypeVisite.ROUTINE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+        UUID routineSans = visiteAvecFiche(TypeVisite.ROUTINE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+        UUID initialeMensuelle = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
+        UUID dejaVisee = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.VISEE, JANVIER_1990);
+
+        mockMvc.perform(json(post(URL_VISA), bearerSenior, "{\"fiches\":["
+                        + "{\"visiteId\":\"" + initialeHebdo + "\",\"frequenceVisites\":\"HEBDOMADAIRE\"},"
+                        + "{\"visiteId\":\"" + initialeSans + "\"},"
+                        + "{\"visiteId\":\"" + routineAvec + "\",\"frequenceVisites\":\"BIMENSUELLE\"},"
+                        + "{\"visiteId\":\"" + routineSans + "\"},"
+                        + "{\"visiteId\":\"" + initialeMensuelle + "\",\"frequenceVisites\":\"MENSUELLE\"},"
+                        + "{\"visiteId\":\"" + dejaVisee + "\",\"frequenceVisites\":\"MENSUELLE\"}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombreFiches", is(6)))
+                .andExpect(jsonPath("$.nombreReussies", is(4)))
+                .andExpect(jsonPath("$.nombreErreurs", is(2)))
+                .andExpect(jsonPath("$.resultats[0].code", is(200)))
+                .andExpect(jsonPath("$.resultats[1].code", is(200)))
+                .andExpect(jsonPath("$.resultats[2].code", is(400)))
+                .andExpect(jsonPath("$.resultats[3].code", is(200)))
+                .andExpect(jsonPath("$.resultats[4].code", is(200)))
+                .andExpect(jsonPath("$.resultats[5].code", is(409)));
+
+        assertThat(ligneFiche(initialeHebdo).get("FREQUENCE_VISITES_SENIOR")).isEqualTo("HEBDOMADAIRE");
+        assertThat(ligneFiche(initialeSans).get("FREQUENCE_VISITES_SENIOR")).isNull();
+        assertThat(ligneFiche(routineAvec).get("STATUT")).isEqualTo("EN_ATTENTE");
+        assertThat(ligneFiche(routineSans).get("STATUT")).isEqualTo("VISEE");
+        assertThat(ligneFiche(routineSans).get("FREQUENCE_VISITES_SENIOR")).isNull();
+        assertThat(ligneFiche(initialeMensuelle).get("FREQUENCE_VISITES_SENIOR")).isEqualTo("MENSUELLE");
+        assertThat(ligneFiche(dejaVisee).get("FREQUENCE_VISITES_SENIOR")).isNull();
+    }
+
     @Test
     void senior_seniorPrisDuBadge_jamaisDuCorps() throws Exception {
         UUID visite = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
 
         mockMvc.perform(json(post(URL_VISA), bearerSenior,
-                        "{\"visiteIds\":[\"" + visite + "\"],\"seniorVisaId\":\"" + UUID.randomUUID() + "\"}"))
+                        "{\"fiches\":[{\"visiteId\":\"" + visite + "\"}],\"seniorVisaId\":\"" + UUID.randomUUID() + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", is("Champ inconnu dans la requete : seniorVisaId")));
         assertThat(ligneFiche(visite).get("STATUT")).isEqualTo("EN_ATTENTE");
@@ -239,7 +369,7 @@ class VisaFichesSeniorIntegrationTest {
     void senior_viseListeVideTropLongueOuAvecDoublons_400_rienNestVise() throws Exception {
         UUID visite = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
 
-        mockMvc.perform(json(post(URL_VISA), bearerSenior, "{\"visiteIds\":[]}"))
+        mockMvc.perform(json(post(URL_VISA), bearerSenior, "{\"fiches\":[]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erreur", is("Validation echouee")));
         mockMvc.perform(json(post(URL_VISA), bearerSenior, "{}"))
@@ -248,12 +378,12 @@ class VisaFichesSeniorIntegrationTest {
         List<String> cinquanteEtUne = IntStream.range(0, 50).mapToObj(i -> UUID.randomUUID().toString())
                 .collect(Collectors.toCollection(ArrayList::new));
         cinquanteEtUne.add(visite.toString());
-        mockMvc.perform(json(post(URL_VISA), bearerSenior, "{\"visiteIds\":" + tableauJson(cinquanteEtUne) + "}"))
+        mockMvc.perform(json(post(URL_VISA), bearerSenior, visa(cinquanteEtUne)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details[0]", is("visiteIds : au plus 50 fiches par requete")));
+                .andExpect(jsonPath("$.details[0]", is("fiches : au plus 50 fiches par requete")));
 
         mockMvc.perform(json(post(URL_VISA), bearerSenior,
-                        "{\"visiteIds\":[\"" + visite + "\",\"" + visite + "\"]}"))
+                        visa(visite, visite)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erreur", is("Regle de gestion non respectee")))
                 .andExpect(jsonPath("$.message",
@@ -269,7 +399,7 @@ class VisaFichesSeniorIntegrationTest {
     @Test
     void lot_cinquanteFiches_estAccepte() throws Exception {
         List<String> cinquante = IntStream.range(0, 50).mapToObj(i -> UUID.randomUUID().toString()).toList();
-        mockMvc.perform(json(post(URL_VISA), bearerSenior, "{\"visiteIds\":" + tableauJson(cinquante) + "}"))
+        mockMvc.perform(json(post(URL_VISA), bearerSenior, visa(cinquante)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nombreFiches", is(50)))
                 .andExpect(jsonPath("$.nombreErreurs", is(50)));
@@ -279,9 +409,9 @@ class VisaFichesSeniorIntegrationTest {
     void service_sansNomDeSenior_refuseToutLeLot() {
         UUID visite = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
 
-        assertThatThrownBy(() -> visaFichesLotService.viser(List.of(visite), seniorId, null))
+        assertThatThrownBy(() -> visaFichesLotService.viser(List.of(new VisaFicheModel(visite, null)), seniorId, null))
                 .isInstanceOf(RegleGestionException.class);
-        assertThatThrownBy(() -> visaFichesLotService.viser(List.of(visite), seniorId, "  "))
+        assertThatThrownBy(() -> visaFichesLotService.viser(List.of(new VisaFicheModel(visite, null)), seniorId, "  "))
                 .isInstanceOf(RegleGestionException.class);
         assertThat(ligneFiche(visite).get("STATUT")).isEqualTo("EN_ATTENTE");
     }
@@ -347,11 +477,11 @@ class VisaFichesSeniorIntegrationTest {
             try {
                 Future<ResultatDecisionModel> a = executeur.submit(() -> {
                     depart.await();
-                    return visaFichesLotService.viser(List.of(visite), seniorA, "a@proxymed.test").get(0);
+                    return visaFichesLotService.viser(List.of(new VisaFicheModel(visite, null)), seniorA, "a@proxymed.test").get(0);
                 });
                 Future<ResultatDecisionModel> b = executeur.submit(() -> {
                     depart.await();
-                    return visaFichesLotService.viser(List.of(visite), seniorB, "b@proxymed.test").get(0);
+                    return visaFichesLotService.viser(List.of(new VisaFicheModel(visite, null)), seniorB, "b@proxymed.test").get(0);
                 });
                 List<ResultatDecisionModel> resultats = List.of(a.get(30, TimeUnit.SECONDS), b.get(30, TimeUnit.SECONDS));
 
@@ -377,7 +507,7 @@ class VisaFichesSeniorIntegrationTest {
         jdbc.update("UPDATE fiche_signee SET version = version + 1 WHERE id = ?", ficheId);
 
         Integer modifiees = transactionTemplate.execute(tx ->
-                ficheSigneeRepository.viserSiVersion(ficheId, 0L, seniorId, EMAIL_SENIOR, Instant.now()));
+                ficheSigneeRepository.viserSiVersion(ficheId, 0L, seniorId, EMAIL_SENIOR, Instant.now(), null));
 
         assertThat(modifiees).isZero();
         assertThat(ligneFiche(visite).get("STATUT")).isEqualTo("EN_ATTENTE");
@@ -388,7 +518,7 @@ class VisaFichesSeniorIntegrationTest {
     @Test
     void adminEtJunior_403_sansBadge_401_rienNestModifie() throws Exception {
         UUID visite = visiteAvecFiche(TypeVisite.INITIALE, StatutFicheSignee.EN_ATTENTE, JANVIER_1990);
-        String visa = "{\"visiteIds\":[\"" + visite + "\"]}";
+        String visa = visa(visite);
         String renvoi = "{\"visiteIds\":[\"" + visite + "\"],\"motif\":\"Scan illisible\"}";
 
         for (String role : List.of("ADMIN", "MEDECIN_JUNIOR")) {
@@ -446,7 +576,7 @@ class VisaFichesSeniorIntegrationTest {
     }
 
     private Map<String, Object> ligneFiche(UUID visiteId) {
-        return jdbc.queryForMap("SELECT statut, senior_visa_id, nom_senior_visa, motif_renvoi, version "
+        return jdbc.queryForMap("SELECT statut, senior_visa_id, nom_senior_visa, motif_renvoi, version, frequence_visites_senior "
                 + "FROM fiche_signee WHERE consultation_id = ?", visiteId);
     }
 
@@ -459,7 +589,18 @@ class VisaFichesSeniorIntegrationTest {
         return requete.header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON).content(corps);
     }
 
-    private static String tableauJson(List<String> valeurs) {
-        return valeurs.stream().map(v -> "\"" + v + "\"").collect(Collectors.joining(",", "[", "]"));
+    private static String visaAvecFrequence(UUID visiteId, String frequence) {
+        return "{\"fiches\":[{\"visiteId\":\"" + visiteId + "\",\"frequenceVisites\":\"" + frequence + "\"}]}";
     }
+
+    /** Corps de visa en lot, sans frequence des visites. */
+    private static String visa(Object... visiteIds) {
+        return visa(java.util.Arrays.stream(visiteIds).map(String::valueOf).toList());
+    }
+
+    private static String visa(List<String> visiteIds) {
+        return visiteIds.stream().map(v -> "{\"visiteId\":\"" + v + "\"}")
+                .collect(Collectors.joining(",", "{\"fiches\":[", "]}"));
+    }
+
 }

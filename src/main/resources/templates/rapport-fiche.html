@@ -3,7 +3,8 @@
   Page de garde du rapport d'une fiche VISEE (Fiche 1). Rendu par PdfGenerationService, comme
   fiche-consultation.html (Thymeleaf -> XHTML -> openhtmltopdf : XHTML bien forme, CSS 2.1, memes
   couleurs). Le scan signe est ajoute ensuite, tel quel, sur les pages suivantes.
-  Variables : r = RapportFicheModel (identite du patient, visite, visa ; jamais de donnee medicale),
+  Variables : r = RapportFicheModel (identite du patient, visite, visa et frequence decidee par le senior ;
+  jamais de donnee medicale de la consultation),
   fuseauHoraire = ZoneId d'affichage de la date du visa.
 -->
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" lang="fr">
@@ -78,6 +79,10 @@
         <tr><td class="lbl">Visée par</td><td class="val visa" th:text="${r.nomSeniorVisa}">Dr Senior</td></tr>
         <tr><td class="lbl">Date du visa</td>
             <td class="val" th:text="${#temporals.format(r.dateVisa.atZone(fuseauHoraire), 'dd/MM/yyyy HH:mm')}">01/01/2026 10:00</td></tr>
+        <tr><td class="lbl">Fréquence des visites décidée par le senior</td>
+            <td class="val" th:text="${r.frequenceVisitesSenior == null} ? 'Non précisée'
+                : (${r.frequenceVisitesSenior.name() == 'HEBDOMADAIRE'} ? 'Hebdomadaire'
+                : (${r.frequenceVisitesSenior.name() == 'BIMENSUELLE'} ? 'Bimensuelle' : 'Mensuelle'))">Non précisée</td></tr>
     </table>
 </div>
 

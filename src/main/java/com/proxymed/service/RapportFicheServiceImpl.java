@@ -48,6 +48,7 @@ public class RapportFicheServiceImpl implements RapportFicheService {
                 .dateVisite(visite.dateConsultation())
                 .nomSeniorVisa(fiche.nomSeniorVisa())
                 .dateVisa(fiche.dateVisa())
+                .frequenceVisitesSenior(fiche.frequenceVisitesSenior())
                 .scan(fiche.contenu())
                 .build());
     }

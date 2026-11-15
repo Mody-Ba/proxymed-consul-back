@@ -35,3 +35,6 @@ databaseChangeLog:
   - include:
       file: db/changelogs/012-visite-statut-visa.sql
       relativeToChangelogFile: false
+  - include:
+      file: db/changelogs/013-frequence-visites-senior.sql
+      relativeToChangelogFile: false

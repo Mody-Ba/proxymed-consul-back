@@ -1,5 +1,6 @@
 package com.proxymed.service.model;
 
+import com.proxymed.enums.FrequenceVisites;
 import com.proxymed.enums.StatutFicheSignee;
 import lombok.Builder;
 
@@ -32,6 +33,7 @@ public record FicheSigneeModel(
         String nomSeniorVisa,
         Instant dateVisa,
         String motifRenvoi,
+        FrequenceVisites frequenceVisitesSenior,
         boolean reimportee
 ) {
 }

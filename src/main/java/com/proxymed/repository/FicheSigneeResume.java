@@ -1,5 +1,6 @@
 package com.proxymed.repository;
 
+import com.proxymed.enums.FrequenceVisites;
 import com.proxymed.enums.StatutFicheSignee;
 
 import java.time.Instant;
@@ -37,4 +38,6 @@ public interface FicheSigneeResume {
     Instant getDateVisa();
 
     String getMotifRenvoi();
+
+    FrequenceVisites getFrequenceVisitesSenior();
 }

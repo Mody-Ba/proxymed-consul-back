@@ -1,5 +1,6 @@
 package com.proxymed.entity;
 
+import com.proxymed.enums.FrequenceVisites;
 import com.proxymed.enums.StatutFicheSignee;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -78,6 +79,11 @@ public class FicheSignee {
 
     @Column(name = "motif_renvoi", length = 1000)
     private String motifRenvoi;
+
+    /** Frequence des visites decidee par le senior au visa d'une visite INITIALE (facultative). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "frequence_visites_senior", length = 20)
+    private FrequenceVisites frequenceVisitesSenior;
 
     @Version
     private Long version;

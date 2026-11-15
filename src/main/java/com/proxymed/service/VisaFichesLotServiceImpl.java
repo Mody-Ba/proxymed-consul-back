@@ -5,6 +5,7 @@ import com.proxymed.exception.ConflitEtatException;
 import com.proxymed.exception.RegleGestionException;
 import com.proxymed.exception.ResourceNotFoundException;
 import com.proxymed.service.model.ResultatDecisionModel;
+import com.proxymed.service.model.VisaFicheModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.ConcurrencyFailureException;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Volontairement sans @Transactional, comme l'import en lot : chaque appel a VisaFicheSigneeService
@@ -34,15 +36,19 @@ public class VisaFichesLotServiceImpl implements VisaFichesLotService {
     private final VisaFicheSigneeService visaFicheSigneeService;
 
     @Override
-    public List<ResultatDecisionModel> viser(List<UUID> visiteIds, UUID seniorId, String nomSenior) {
+    public List<ResultatDecisionModel> viser(List<VisaFicheModel> fiches, UUID seniorId, String nomSenior) {
+        if (fiches != null && fiches.stream().anyMatch(Objects::isNull)) {
+            throw new RegleGestionException("Une fiche de la liste est vide : aucune fiche n'a ete traitee");
+        }
+        List<UUID> visiteIds = fiches == null ? null : fiches.stream().map(VisaFicheModel::visiteId).toList();
         verifierListe(visiteIds);
         if (seniorId == null || nomSenior == null || nomSenior.isBlank() || nomSenior.length() > NOM_SENIOR_MAX) {
             throw new RegleGestionException("Le badge ne permet pas d'identifier le senior (identifiant ou "
                     + "adresse e-mail absente, ou e-mail de plus de " + NOM_SENIOR_MAX + " caracteres) : "
                     + "aucune fiche n'a ete visee");
         }
-        return traiter(visiteIds, StatutFicheSignee.VISEE,
-                visiteId -> visaFicheSigneeService.viser(visiteId, seniorId, nomSenior));
+        return traiter(fiches, VisaFicheModel::visiteId, StatutFicheSignee.VISEE,
+                fiche -> visaFicheSigneeService.viser(fiche.visiteId(), fiche.frequenceVisites(), seniorId, nomSenior));
     }
 
     @Override
@@ -56,7 +62,7 @@ public class VisaFichesLotServiceImpl implements VisaFichesLotService {
             throw new RegleGestionException("Le motif du renvoi ne doit pas depasser " + MOTIF_MAX
                     + " caracteres : aucune fiche n'a ete renvoyee");
         }
-        return traiter(visiteIds, StatutFicheSignee.RENVOYEE,
+        return traiter(visiteIds, visiteId -> visiteId, StatutFicheSignee.RENVOYEE,
                 visiteId -> visaFicheSigneeService.renvoyer(visiteId, motifNettoye));
     }
 
@@ -77,15 +83,16 @@ public class VisaFichesLotServiceImpl implements VisaFichesLotService {
         }
     }
 
-    private List<ResultatDecisionModel> traiter(List<UUID> visiteIds, StatutFicheSignee statutObtenu,
-                                                Consumer<UUID> action) {
+    private static <T> List<ResultatDecisionModel> traiter(List<T> elements, Function<T, UUID> visiteDe,
+                                                           StatutFicheSignee statutObtenu, Consumer<T> action) {
         List<ResultatDecisionModel> resultats = new ArrayList<>();
-        for (int index = 0; index < visiteIds.size(); index++) {
-            UUID visiteId = visiteIds.get(index);
+        for (int index = 0; index < elements.size(); index++) {
+            T element = elements.get(index);
+            UUID visiteId = visiteDe.apply(element);
             ResultatDecisionModel.ResultatDecisionModelBuilder resultat = ResultatDecisionModel.builder()
                     .index(index).visiteId(visiteId);
             try {
-                action.accept(visiteId);
+                action.accept(element);
                 resultats.add(resultat.statut(statutObtenu).build());
             } catch (ConcurrencyFailureException e) {
                 resultats.add(resultat.erreur(new ConflitEtatException(
